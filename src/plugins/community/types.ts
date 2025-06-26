@@ -14,6 +14,8 @@ export interface PostComment {
   depth: number; // Nesting level (0 = top-level comment)
   isEdited: boolean;
   isPinned: boolean;
+  videoUrl?: string; // Video URL for embedded videos
+  linkUrl?: string; // Link URL for embedded links
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +35,8 @@ export interface CommunityPost {
   isPinned: boolean;
   createdAt: Date;
   imageUrl?: string;
+  videoUrl?: string; // Video URL for embedded videos
+  linkUrl?: string; // Link URL for embedded links
   // Additional fields for modal display
   comments: PostComment[];
   commenters?: Array<{ avatarUrl?: string; initials: string; name: string }>;
@@ -245,7 +249,7 @@ export interface PostDetailModalProps {
   onClose: () => void;
   onLikePost: (postId: string) => Promise<void>;
   onUnlikePost: (postId: string) => Promise<void>;
-  onAddComment: (postId: string, content: string, parentId?: string) => Promise<void>;
+  onAddComment: (postId: string, content: string, parentId?: string, mediaData?: any) => Promise<void>;
   onLikeComment: (commentId: string) => Promise<void>;
   onUnlikeComment: (commentId: string) => Promise<void>;
 }
@@ -255,7 +259,7 @@ export interface CommentItemProps {
   currentUser: any;
   onLike: (commentId: string) => Promise<void>;
   onUnlike: (commentId: string) => Promise<void>;
-  onReply: (parentId: string, content: string) => Promise<void>;
+  onReply: (content: string, parentId: string, mediaData?: any) => Promise<void>;
   maxDepth?: number;
 }
 
@@ -263,7 +267,7 @@ export interface ReplyFormProps {
   parentId?: string;
   postId: string;
   currentUser: any;
-  onSubmit: (content: string, parentId?: string) => Promise<void>;
+  onSubmit: (content: string, parentId?: string, mediaData?: any) => Promise<void>;
   onCancel?: () => void;
   placeholder?: string;
 }

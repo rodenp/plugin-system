@@ -37,6 +37,18 @@ const CommunityMyProfileComponent: React.FC<CommunityMyProfileProps> = ({
   ...props 
 }) => {
   console.log('🔍 CommunityMyProfileComponent rendering with props:', { currentUser, userProfile: props.userProfile, ownedCommunities: props.ownedCommunities });
+  
+  const groupname = currentUser?.profile?.groupname || 'courzey';
+  const pluginPath = `/${groupname}/my-profile`;
+  
+  // Update document title and URL without causing page reload
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', pluginPath);
+      document.title = `My Profile - ${groupname}`;
+    }
+  }, [groupname, pluginPath]);
+  
   const context = {
     currentUser,
     communityId,

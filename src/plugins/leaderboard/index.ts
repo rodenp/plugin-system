@@ -33,6 +33,17 @@ const LeaderboardComponent: React.FC<LeaderboardProps> = ({
   theme, 
   ...props 
 }) => {
+  const groupname = currentUser?.profile?.groupname || 'courzey';
+  const pluginPath = `/${groupname}/leaderboard`;
+  
+  // Update document title and URL without causing page reload
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', pluginPath);
+      document.title = `Leaderboard - ${groupname}`;
+    }
+  }, [groupname, pluginPath]);
+  
   const context = {
     currentUser,
     communityId,

@@ -47,7 +47,7 @@ const DemoContent: React.FC = () => {
       id: '1', 
       author: 'Sarah Johnson', 
       time: '2h', 
-      content: 'Just completed my first 10K run! The training program in this community has been amazing. Thank you everyone for the support! 🏃‍♀️', 
+      content: 'Just completed my first 10K run! ![GIF](https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif) The training program in this community has been amazing. Thank you everyone for the support! 🏃‍♀️', 
       likes: 24, 
       comments: 8, 
       isPinned: false,
@@ -94,6 +94,22 @@ const DemoContent: React.FC = () => {
         { initials: 'HK', avatarUrl: null }
       ],
       newCommentTimeAgo: '15m ago'
+    },
+    {
+      id: '4',
+      author: 'Alex Rodriguez',
+      time: '6h',
+      content: 'Amazing workout session today! ![GIF](https://media.giphy.com/media/26u4lOMA8JKSnL9Uk/giphy.gif) And here\'s another one! ![GIF](https://media.giphy.com/media/l4FGGafcOHmrlQxG0/giphy.gif) Feeling great! 💪',
+      likes: 15,
+      comments: 5,
+      isPinned: false,
+      level: 4,
+      commenters: [
+        { initials: 'SJ', avatarUrl: null },
+        { initials: 'MC', avatarUrl: null },
+        { initials: 'ED', avatarUrl: null }
+      ],
+      newCommentTimeAgo: '2h ago'
     }
   ];
 
@@ -3265,7 +3281,8 @@ const DemoContent: React.FC = () => {
       bio: 'Fitness enthusiast and community creator',
       avatar: null,
       timezone: 'America/New_York',
-      location: 'New York, USA'
+      location: 'New York, USA',
+      groupname: 'courzey'
     },
     role: 'creator' as const,
     createdAt: new Date(),

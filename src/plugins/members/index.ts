@@ -20,6 +20,17 @@ interface MembersProps extends PluginProps {
 
 // Component wrapper for the Members tab
 const MembersComponent: React.FC<MembersProps> = ({ currentUser, communityId, community, userRole, theme, ...props }) => {
+  const groupname = currentUser?.profile?.groupname || 'courzey';
+  const pluginPath = `/${groupname}/members`;
+  
+  // Update document title and URL without causing page reload
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', pluginPath);
+      document.title = `Members - ${groupname}`;
+    }
+  }, [groupname, pluginPath]);
+  
   const context = {
     currentUser,
     communityId,

@@ -389,7 +389,7 @@ export class CommunityService {
     }
   }
 
-  async addPostComment(postId: string, content: string, authorId: string, authorName: string, parentId?: string): Promise<any> {
+  async addPostComment(postId: string, content: string, authorId: string, authorName: string, parentId?: string, mediaData?: any): Promise<any> {
     try {
       const commentsKey = `${this.storagePrefix}_post_comments_${postId}`;
       const comments = JSON.parse(localStorage.getItem(commentsKey) || '[]');
@@ -416,6 +416,14 @@ export class CommunityService {
         depth,
         isEdited: false,
         isPinned: false,
+        // Support all media types
+        videoUrl: mediaData?.type === 'video' ? mediaData.url : mediaData?.videoUrl,
+        linkUrl: mediaData?.linkUrl,
+        pollData: mediaData?.type === 'poll' ? { 
+          options: mediaData.options || [],
+          votes: mediaData.options ? mediaData.options.map(() => 0) : []
+        } : undefined,
+        attachments: mediaData?.attachments || undefined,
         createdAt: new Date(),
         updatedAt: new Date()
       };

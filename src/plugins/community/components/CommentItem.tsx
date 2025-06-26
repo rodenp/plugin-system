@@ -1,8 +1,10 @@
 import * as React from 'react'
-import { ThumbsUp, MessageCircle, MoreHorizontal } from 'lucide-react'
+import { ThumbsUp, MessageCircle, MoreHorizontal, Link } from 'lucide-react'
 import type { CommentItemProps, PostComment } from '../types'
 import { defaultTheme } from '../../shared/default-theme'
 import { ReplyForm } from './ReplyForm'
+import { ContentRenderer } from './ContentRenderer'
+import { MediaCarousel } from './MediaCarousel'
 
 export const CommentItem: React.FC<CommentItemProps> = ({
   comment,
@@ -15,6 +17,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const [showReplyForm, setShowReplyForm] = React.useState(false)
   // Always show replies by default, let user hide them if needed
   const [showReplies, setShowReplies] = React.useState(true)
+  const [showAllReplies, setShowAllReplies] = React.useState(false)
 
   const handleLikeComment = async () => {
     try {
@@ -28,9 +31,9 @@ export const CommentItem: React.FC<CommentItemProps> = ({
     }
   }
 
-  const handleReply = async (content: string) => {
+  const handleReply = async (content: string, parentId?: string, mediaData?: any) => {
     try {
-      await onReply(content, comment.id)  // Fixed parameter order: content first, parentId second
+      await onReply(content, comment.id, mediaData)  // Pass media data to onReply
       setShowReplyForm(false)
     } catch (error) {
       console.error('Error adding reply:', error)
@@ -100,9 +103,48 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               </span>
             </div>
             
-            <div className="text-sm text-gray-700 whitespace-pre-wrap">
-              {comment.content}
+            <div className="text-sm text-gray-700">
+              <ContentRenderer content={comment.content} theme={defaultTheme} excludeGifs={true} />
             </div>
+            
+            {/* All media in unified carousel */}
+            <div className="mt-3">
+              <MediaCarousel
+                attachments={(comment as any).attachments}
+                videoUrl={comment.videoUrl}
+                pollData={(comment as any).pollData}
+                content={comment.content}
+                theme={defaultTheme}
+                compact={true}
+                showCloseButton={false}
+              />
+            </div>
+            
+            {/* Link preview (separate from media carousel) */}
+            {comment.linkUrl && (
+              <div className="mt-3">
+                <a
+                  href={comment.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors group max-w-md"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                      <Link className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                        External Link
+                      </div>
+                      <div className="text-xs text-gray-500 truncate mt-0.5">
+                        {comment.linkUrl}
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Comment actions */}
@@ -129,6 +171,14 @@ export const CommentItem: React.FC<CommentItemProps> = ({
                 className="text-xs text-gray-500 hover:text-gray-700 font-medium transition-colors"
               >
                 Reply
+              </button>
+            )}
+            
+            {currentUser?.id === comment.authorId && (
+              <button 
+                onClick={() => alert(`Edit comment ${comment.id} - Edit functionality not implemented yet`)}
+                className="opacity-0 group-hover:opacity-100 text-xs text-gray-500 hover:text-gray-700 font-medium transition-opacity">
+                Edit
               </button>
             )}
             
@@ -168,7 +218,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               {/* Show replies when showReplies is true */}
               {showReplies && (
                 <div className="space-y-3 border-l-2 border-gray-100 pl-4 ml-2">
-                  {comment.replies.map((reply) => (
+                  {/* Show first 2 replies or all if showAllReplies is true */}
+                  {(showAllReplies ? comment.replies : comment.replies.slice(0, 2)).map((reply) => (
                     <CommentItem
                       key={reply.id}
                       comment={reply}
@@ -180,10 +231,23 @@ export const CommentItem: React.FC<CommentItemProps> = ({
                     />
                   ))}
                   
+                  {/* Show "View x more replies" if there are more than 2 replies and not showing all */}
+                  {comment.replies.length > 2 && !showAllReplies && (
+                    <button
+                      onClick={() => setShowAllReplies(true)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium ml-2"
+                    >
+                      View {comment.replies.length - 2} more {comment.replies.length - 2 === 1 ? 'reply' : 'replies'}
+                    </button>
+                  )}
+                  
                   {/* Show hide button only if there are multiple replies */}
                   {comment.replies.length > 1 && (
                     <button
-                      onClick={() => setShowReplies(false)}
+                      onClick={() => {
+                        setShowReplies(false)
+                        setShowAllReplies(false) // Reset when hiding
+                      }}
                       className="text-xs text-gray-500 hover:text-gray-700 font-medium ml-2"
                     >
                       Hide replies

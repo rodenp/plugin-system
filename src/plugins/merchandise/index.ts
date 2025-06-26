@@ -21,6 +21,17 @@ interface MerchandiseProps extends PluginProps {
 
 // Component wrapper for the Merch tab
 const MerchComponent: React.FC<MerchandiseProps> = ({ currentUser, communityId, community, userRole, theme, ...props }) => {
+  const groupname = currentUser?.profile?.groupname || 'courzey';
+  const pluginPath = `/${groupname}/merchandise`;
+  
+  // Update document title and URL without causing page reload
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', pluginPath);
+      document.title = `Merchandise - ${groupname}`;
+    }
+  }, [groupname, pluginPath]);
+  
   const context = {
     currentUser,
     communityId,

@@ -2,6 +2,10 @@ import * as React from 'react'
 import type { PluginProps, User, Community } from '../../types/plugin-interface'
 import { defaultTheme } from '../shared/default-theme'
 import { PostDetailModal } from './components/PostDetailModal'
+import { WritePostSection } from './components/WritePostSection'
+import { CreatePostModal } from './components/CreatePostModal'
+import { MediaCarousel } from './components/MediaCarousel'
+import { ContentRenderer } from './components/ContentRenderer'
 import { CommunityService } from './community-service'
 import type { CommunityPost } from './types'
 
@@ -19,6 +23,9 @@ interface Post {
   isPinned: boolean
   createdAt: string
   level?: number
+  videoUrl?: string
+  linkUrl?: string
+  attachments?: Array<{ id: string; name: string; size: number; type: string; preview: string }>
   commenters?: Array<{ avatarUrl?: string; initials: string; name?: string }>
   newCommentTimeAgo?: string
 }
@@ -42,84 +49,6 @@ interface CommunityFeedProps extends PluginProps {
   onRefresh?: () => Promise<void>
 }
 
-const PostComposer: React.FC<{
-  currentUser: any
-  theme: any
-  onCreatePost: (title: string, content: string, category: string) => void
-}> = ({ currentUser, theme, onCreatePost }) => {
-  const [content, setContent] = React.useState('')
-  const [category, setCategory] = React.useState('discussion')
-  
-  const handleSubmit = () => {
-    if (content.trim()) {
-      onCreatePost('', content, category)
-      setContent('')
-    }
-  }
-
-  return (
-    <div style={{
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.borders.borderRadius,
-      boxShadow: theme.borders.boxShadow,
-      padding: theme.spacing.lg
-    }}>
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <div style={{
-          width: '40px', height: '40px', borderRadius: '999px',
-          backgroundColor: theme.colors.surfaceAlt,
-          display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 600
-        }}>{currentUser?.profile?.displayName?.charAt(0) || 'U'}</div>
-        <div style={{ flex: 1 }}>
-          <textarea
-            placeholder="Write something..."
-            rows={3}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            style={{
-              width: '100%',
-              padding: theme.spacing.md,
-              border: `1px solid ${theme.borders.borderColor}`,
-              borderRadius: theme.borders.borderRadius,
-              resize: 'none',
-              fontFamily: theme.font.family
-            }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: theme.spacing.md }}>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <select 
-                value={category} 
-                onChange={(e) => setCategory(e.target.value)}
-                style={{
-                  padding: '0.25rem 0.5rem',
-                  borderRadius: theme.borders.borderRadius,
-                  border: `1px solid ${theme.borders.borderColor}`
-                }}
-              >
-                <option value="discussion">Discussion</option>
-                <option value="update">Update</option>
-                <option value="gem">Gem</option>
-                <option value="fun">Fun</option>
-              </select>
-            </div>
-            <button 
-              onClick={handleSubmit}
-              disabled={!content.trim()}
-              style={{
-                backgroundColor: content.trim() ? theme.colors.secondary : theme.colors.muted,
-                color: 'white',
-                padding: '0.5rem 1rem',
-                borderRadius: theme.borders.borderRadius,
-                border: 'none',
-                cursor: content.trim() ? 'pointer' : 'not-allowed'
-              }}
-            >Post</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 const FilterButtons: React.FC<{
   filterCategory: string
@@ -158,9 +87,11 @@ const PostCard: React.FC<{
   post: Post
   selectedPost: string | null
   theme: any
+  currentUser: any
   onToggleSelect: (postId: string) => void
   onLikePost: (postId: string) => void
-}> = ({ post, selectedPost, theme, onToggleSelect, onLikePost }) => (
+  onEditPost?: (postId: string) => void
+}> = ({ post, selectedPost, theme, currentUser, onToggleSelect, onLikePost, onEditPost }) => (
   <div
     style={{
       backgroundColor: theme.colors.surface,
@@ -214,7 +145,27 @@ const PostCard: React.FC<{
           {new Date(post.createdAt).toLocaleDateString()}
         </div>
       </div>
-      {post.isPinned && <div style={{ color: theme.colors.highlight, fontWeight: 600 }}>📌 Pinned</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm }}>
+        {currentUser?.id === post.authorId && (
+          <button 
+            onClick={(e) => {
+              e.stopPropagation()
+              if (onEditPost) onEditPost(post.id)
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: theme.colors.textSecondary,
+              fontSize: theme.font.sizeSm,
+              cursor: 'pointer',
+              padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+              borderRadius: theme.borders.borderRadius
+            }}>
+            Edit
+          </button>
+        )}
+        {post.isPinned && <div style={{ color: theme.colors.highlight, fontWeight: 600 }}>📌 Pinned</div>}
+      </div>
     </div>
 
     {/* Content */}
@@ -225,8 +176,84 @@ const PostCard: React.FC<{
         </div>
       )}
       <div style={{ fontSize: theme.font.sizeSm, color: theme.colors.textSecondary }}>
-        {post.content}
+        <ContentRenderer content={post.content} theme={theme} excludeGifs={true} />
       </div>
+      
+      
+      {/* Link preview */}
+      {post.linkUrl && (
+        <div style={{ marginTop: theme.spacing.sm }}>
+          <a
+            href={post.linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'block',
+              border: `1px solid ${theme.borders.borderColor}`,
+              borderRadius: theme.borders.borderRadius,
+              padding: theme.spacing.md,
+              backgroundColor: theme.colors.surface,
+              textDecoration: 'none',
+              color: 'inherit',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = theme.colors.surfaceAlt
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = theme.colors.surface
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.sm
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                backgroundColor: theme.colors.secondary,
+                borderRadius: theme.borders.borderRadius,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px'
+              }}>
+                🔗
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: theme.font.sizeSm,
+                  fontWeight: 600,
+                  color: theme.colors.secondary,
+                  marginBottom: '2px'
+                }}>
+                  External Link
+                </div>
+                <div style={{
+                  fontSize: theme.font.sizeXs,
+                  color: theme.colors.textSecondary,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {post.linkUrl}
+                </div>
+              </div>
+            </div>
+          </a>
+        </div>
+      )}
+      
+      {/* All media in unified carousel */}
+      <MediaCarousel
+        attachments={post.attachments}
+        videoUrl={post.videoUrl}
+        pollData={(post as any).pollData}
+        content={post.content}
+        theme={theme}
+        compact={true}
+      />
     </div>
 
     {/* Interaction buttons */}
@@ -405,6 +432,9 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
   const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [modalPost, setModalPost] = React.useState<CommunityPost | null>(null)
   
+  // Create post modal state
+  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false)
+  
   // Enhanced posts state to include our custom posts
   const [customPosts, setCustomPosts] = React.useState<any[]>([])
   const [refreshTrigger, setRefreshTrigger] = React.useState(0)
@@ -559,7 +589,15 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
   }, [allPosts, filterCategory])
 
   // Event handlers
-  const handleCreatePost = React.useCallback(async (title: string, content: string, category: string) => {
+  const handleOpenCreateModal = React.useCallback(() => {
+    setIsCreateModalOpen(true)
+  }, [])
+
+  const handleCloseCreateModal = React.useCallback(() => {
+    setIsCreateModalOpen(false)
+  }, [])
+
+  const handleCreatePost = React.useCallback(async (title: string, content: string, category: string, mediaData?: any) => {
     try {
       // Create post using our community service
       const newPost = {
@@ -577,34 +615,36 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
         isPinned: false,
         createdAt: new Date(),
         comments: [],
-        commenters: []
+        commenters: [],
+        videoUrl: mediaData?.type === 'video' ? mediaData.url : undefined,
+        linkUrl: mediaData?.type === 'link' ? mediaData.url : undefined,
+        pollData: mediaData?.type === 'poll' ? mediaData : undefined,
+        attachments: mediaData?.attachments || undefined
       }
       
       // Save to localStorage using community service format
       const postKey = `${communityService.storage}_post_${newPost.id}`
-      localStorage.setItem(postKey, JSON.stringify(newPost))
       
-      // Trigger refresh of custom posts
-      setRefreshTrigger(prev => prev + 1)
-      
-      // Also call the original handler to maintain compatibility
       try {
-        await onCreatePost({
-          title,
-          content,
-          category,
-          author: currentUser?.profile?.displayName || 'Anonymous',
-          authorId: currentUser?.id || 'anonymous',
-          likes: 0,
-          comments: 0,
-          isPinned: false
-        })
-      } catch (origError) {
-        // If original handler fails, that's OK - we still saved our post
-        console.log('[Community] Original handler failed, but post saved locally:', origError)
+        localStorage.setItem(postKey, JSON.stringify(newPost))
+        
+        // Trigger refresh of custom posts
+        setRefreshTrigger(prev => prev + 1)
+        
+        // Note: We don't call the original onCreatePost handler to avoid duplicates
+        // Our implementation is more complete and handles media data
+      } catch (storageError) {
+        if (storageError instanceof DOMException && storageError.name === 'QuotaExceededError') {
+          alert('Storage quota exceeded. Your post contains attachments that are too large. Please try with smaller files or remove some attachments.')
+          console.error('[Community] Storage quota exceeded:', storageError)
+          return // Don't continue with post creation
+        } else {
+          throw storageError // Re-throw other storage errors
+        }
       }
     } catch (error) {
       console.error('[Community] Error creating post:', error)
+      alert('Error creating post. Please try again with smaller attachments.')
     }
   }, [onCreatePost, currentUser, communityService, setRefreshTrigger])
 
@@ -622,8 +662,13 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
   const handleToggleSelect = React.useCallback(async (postId: string) => {
     // Open modal instead of just selecting
     try {
-      // Always use the post from the demo's posts prop (not localStorage)
-      const currentPost = posts.find(p => p.id === postId)
+      // Look for the post in both demo posts and combined posts (which includes custom posts)
+      let currentPost = posts.find(p => p.id === postId)
+      
+      // If not found in demo posts, look in the combined allPosts array
+      if (!currentPost) {
+        currentPost = allPosts.find(p => p.id === postId)
+      }
       
       if (currentPost) {
         // Get any existing comments from our storage for this post
@@ -634,7 +679,7 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
         const threadedComments = existingComments.length > 0 ? 
           communityService.buildCommentTree(existingComments, currentUser?.id || 'anonymous') : []
         
-        // Use the exact data from the demo
+        // Create post with comments for modal
         const postWithComments: CommunityPost = {
           ...currentPost,
           authorAvatar: currentPost.authorAvatar || currentUser?.profile?.avatar,
@@ -654,12 +699,12 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
         setModalPost(postWithComments)
         setIsModalOpen(true)
       } else {
-        console.warn('[Community] Post not found in demo posts:', postId)
+        console.warn('[Community] Post not found:', postId)
       }
     } catch (error) {
       console.error('[Community] Error loading post details:', error)
     }
-  }, [communityService, posts, currentUser, userLikes])
+  }, [communityService, posts, allPosts, currentUser, userLikes])
 
   const handleFilterChange = React.useCallback((category: string) => {
     setFilterCategory(category)
@@ -687,7 +732,7 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
     return handleModalLikePost(postId)
   }, [handleModalLikePost])
 
-  const handleModalAddComment = React.useCallback(async (postId: string, content: string, parentId?: string) => {
+  const handleModalAddComment = React.useCallback(async (postId: string, content: string, parentId?: string, mediaData?: any) => {
     try {
       // Add comment to our storage system
       await communityService.addPostComment(
@@ -695,7 +740,8 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
         content, 
         currentUser?.id || 'anonymous',
         currentUser?.profile?.displayName || 'Anonymous',
-        parentId
+        parentId,
+        mediaData
       )
       
       // Also call the demo's onAddComment callback to update the posts state
@@ -767,10 +813,10 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
       padding: appliedTheme.spacing.lg 
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: appliedTheme.spacing.lg }}>
-        <PostComposer 
+        <WritePostSection 
           currentUser={currentUser} 
           theme={appliedTheme}
-          onCreatePost={handleCreatePost}
+          onClick={handleOpenCreateModal}
         />
         <FilterButtons 
           filterCategory={filterCategory} 
@@ -784,8 +830,10 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
               post={post} 
               selectedPost={selectedPost} 
               theme={appliedTheme}
+              currentUser={currentUser}
               onToggleSelect={handleToggleSelect}
               onLikePost={handleLikePost}
+              onEditPost={(postId) => alert(`Edit post ${postId} - Edit functionality not implemented yet`)}
             />
           ))}
           {filteredPosts.length === 0 && (
@@ -824,6 +872,15 @@ export const CommunityFeedComponent: React.FC<CommunityFeedProps> = ({
         onAddComment={handleModalAddComment}
         onLikeComment={handleModalLikeComment}
         onUnlikeComment={handleModalUnlikeComment}
+      />
+
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={isCreateModalOpen}
+        currentUser={currentUser}
+        theme={appliedTheme}
+        onClose={handleCloseCreateModal}
+        onCreatePost={handleCreatePost}
       />
     </div>
   )

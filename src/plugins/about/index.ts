@@ -22,6 +22,17 @@ interface AboutProps extends PluginProps {
 
 // Component wrapper for the About tab
 const AboutComponent: React.FC<AboutProps> = ({ currentUser, communityId, community, userRole, theme, ...props }) => {
+  const groupname = currentUser?.profile?.groupname || 'courzey';
+  const pluginPath = `/${groupname}/about`;
+  
+  // Update document title and URL without causing page reload
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', pluginPath);
+      document.title = `About - ${groupname}`;
+    }
+  }, [groupname, pluginPath]);
+  
   const context = {
     currentUser,
     communityId,
