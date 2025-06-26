@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 
 /generated/prisma
+
+# Claude AI session files and spec folders
+.claude/
+spec/
+.env
