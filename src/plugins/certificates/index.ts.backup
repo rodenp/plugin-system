@@ -1,0 +1,724 @@
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { eventBus } from '@/core/event-bus';
+
+// ============================================================================
+// CERTIFICATES PLUGIN
+// ============================================================================
+
+export interface CertificateTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  template: {
+    width: number; // in pixels
+    height: number;
+    backgroundColor: string;
+    backgroundImage?: string;
+    layout: 'portrait' | 'landscape';
+    elements: Array<{
+      id: string;
+      type: 'text' | 'image' | 'signature' | 'date' | 'qr_code' | 'seal';
+      x: number; // position
+      y: number;
+      width?: number;
+      height?: number;
+      content: string;
+      style: {
+        fontFamily?: string;
+        fontSize?: number;
+        fontWeight?: string;
+        color?: string;
+        textAlign?: 'left' | 'center' | 'right';
+        opacity?: number;
+      };
+      dynamic?: boolean; // true if content is populated dynamically
+      variable?: string; // variable name for dynamic content
+    }>;
+  };
+  variables: Array<{
+    name: string;
+    label: string;
+    type: 'text' | 'date' | 'number' | 'image';
+    required: boolean;
+    defaultValue?: string;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+  isActive: boolean;
+}
+
+export interface Certificate {
+  id: string;
+  certificateNumber: string; // unique identifier
+  courseId: string;
+  courseName: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  instructorId: string;
+  instructorName: string;
+  
+  // Certificate details
+  templateId: string;
+  issuedAt: Date;
+  validFrom: Date;
+  validUntil?: Date; // for certificates with expiration
+  
+  // Course completion details
+  completionDate: Date;
+  finalScore: number;
+  passingScore: number;
+  totalHours: number;
+  skillsAcquired: string[];
+  
+  // Certificate metadata
+  status: 'issued' | 'revoked' | 'expired';
+  revokedAt?: Date;
+  revokedReason?: string;
+  revokedBy?: string;
+  
+  // URLs and files
+  certificateUrl: string; // URL to view/download certificate
+  pdfUrl?: string; // URL to download PDF
+  imageUrl?: string; // URL to certificate image
+  
+  // Verification
+  verificationCode: string;
+  verificationUrl: string;
+  isPubliclyVerifiable: boolean;
+  
+  // Blockchain/NFT integration (optional)
+  blockchainTxId?: string;
+  nftTokenId?: string;
+  
+  // Social sharing
+  shareableUrl: string;
+  linkedInCertUrl?: string;
+}
+
+export interface CertificateCredentials {
+  credentialId: string;
+  issuerName: string;
+  issuerLogo?: string;
+  issuerUrl?: string;
+  accreditationBody?: string;
+  accreditationNumber?: string;
+  digitalSignature?: string;
+  certificateAuthorityId?: string;
+}
+
+export interface CertificateVerification {
+  certificateId: string;
+  verificationCode: string;
+  isValid: boolean;
+  verificationDate: Date;
+  verificationDetails: {
+    courseName: string;
+    studentName: string;
+    issuedDate: Date;
+    instructorName: string;
+    institutionName: string;
+    status: string;
+  };
+}
+
+export interface CertificateSettings {
+  enableCertificates: boolean;
+  requireManualApproval: boolean;
+  minimumPassingScore: number;
+  certificateValidityPeriod?: number; // in months
+  allowRetake: boolean;
+  maxRetakeAttempts?: number;
+  
+  // Template settings
+  defaultTemplateId?: string;
+  customBranding: {
+    institutionName: string;
+    institutionLogo?: string;
+    institutionUrl?: string;
+    primaryColor: string;
+    secondaryColor: string;
+    font: string;
+  };
+  
+  // Verification settings
+  enablePublicVerification: boolean;
+  enableBlockchainVerification: boolean;
+  verificationBaseUrl: string;
+  
+  // Social features
+  enableSocialSharing: boolean;
+  enableLinkedInIntegration: boolean;
+  linkedInOrganizationId?: string;
+}
+
+// ============================================================================
+// REDUX SLICE
+// ============================================================================
+
+interface CertificatesState {
+  templates: Record<string, CertificateTemplate>;
+  certificates: Record<string, Certificate>;
+  userCertificates: Record<string, Certificate[]>; // keyed by userId
+  courseCertificates: Record<string, Certificate[]>; // keyed by courseId
+  settings: CertificateSettings | null;
+  loading: boolean;
+  error: string | null;
+}
+
+const initialState: CertificatesState = {
+  templates: {},
+  certificates: {},
+  userCertificates: {},
+  courseCertificates: {},
+  settings: null,
+  loading: false,
+  error: null,
+};
+
+// ============================================================================
+// ASYNC THUNKS
+// ============================================================================
+
+export const loadCertificateSettings = createAsyncThunk(
+  'certificates/loadSettings',
+  async () => {
+    const response = await fetch('/api/certificates/settings');
+    if (!response.ok) {
+      throw new Error('Failed to load certificate settings');
+    }
+    return response.json();
+  }
+);
+
+export const createCertificateTemplate = createAsyncThunk(
+  'certificates/createTemplate',
+  async (templateData: Partial<CertificateTemplate>) => {
+    const response = await fetch('/api/certificates/templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(templateData),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to create certificate template');
+    }
+    
+    const template = await response.json();
+    eventBus.emit('certificate:template-created', template);
+    return template;
+  }
+);
+
+export const generateCertificate = createAsyncThunk(
+  'certificates/generateCertificate',
+  async ({ 
+    courseId, 
+    studentId, 
+    templateId, 
+    completionData 
+  }: {
+    courseId: string;
+    studentId: string;
+    templateId?: string;
+    completionData: any;
+  }) => {
+    const response = await fetch('/api/certificates/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        courseId,
+        studentId,
+        templateId,
+        completionData,
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to generate certificate');
+    }
+    
+    const certificate = await response.json();
+    eventBus.emit('certificate:generated', certificate);
+    return certificate;
+  }
+);
+
+export const verifyCertificate = createAsyncThunk(
+  'certificates/verifyCertificate',
+  async (verificationCode: string) => {
+    const response = await fetch(`/api/certificates/verify/${verificationCode}`);
+    if (!response.ok) {
+      throw new Error('Failed to verify certificate');
+    }
+    
+    return response.json();
+  }
+);
+
+export const revokeCertificate = createAsyncThunk(
+  'certificates/revokeCertificate',
+  async ({ certificateId, reason }: { certificateId: string; reason: string }) => {
+    const response = await fetch(`/api/certificates/${certificateId}/revoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to revoke certificate');
+    }
+    
+    const result = await response.json();
+    eventBus.emit('certificate:revoked', result);
+    return result;
+  }
+);
+
+export const shareCertificateToLinkedIn = createAsyncThunk(
+  'certificates/shareToLinkedIn',
+  async (certificateId: string) => {
+    const response = await fetch(`/api/certificates/${certificateId}/share/linkedin`, {
+      method: 'POST',
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to share certificate to LinkedIn');
+    }
+    
+    return response.json();
+  }
+);
+
+export const downloadCertificate = createAsyncThunk(
+  'certificates/downloadCertificate',
+  async ({ certificateId, format = 'pdf' }: { certificateId: string; format?: 'pdf' | 'png' | 'jpg' }) => {
+    const response = await fetch(`/api/certificates/${certificateId}/download?format=${format}`);
+    if (!response.ok) {
+      throw new Error('Failed to download certificate');
+    }
+    
+    // Return blob for download
+    const blob = await response.blob();
+    return { blob, certificateId, format };
+  }
+);
+
+// ============================================================================
+// SLICE DEFINITION
+// ============================================================================
+
+const certificatesSlice = createSlice({
+  name: 'certificates',
+  initialState,
+  reducers: {
+    setTemplate: (state, action: PayloadAction<CertificateTemplate>) => {
+      state.templates[action.payload.id] = action.payload;
+    },
+    setCertificate: (state, action: PayloadAction<Certificate>) => {
+      const certificate = action.payload;
+      state.certificates[certificate.id] = certificate;
+      
+      // Add to user certificates
+      if (!state.userCertificates[certificate.studentId]) {
+        state.userCertificates[certificate.studentId] = [];
+      }
+      const userCertIndex = state.userCertificates[certificate.studentId].findIndex(c => c.id === certificate.id);
+      if (userCertIndex !== -1) {
+        state.userCertificates[certificate.studentId][userCertIndex] = certificate;
+      } else {
+        state.userCertificates[certificate.studentId].push(certificate);
+      }
+      
+      // Add to course certificates
+      if (!state.courseCertificates[certificate.courseId]) {
+        state.courseCertificates[certificate.courseId] = [];
+      }
+      const courseCertIndex = state.courseCertificates[certificate.courseId].findIndex(c => c.id === certificate.id);
+      if (courseCertIndex !== -1) {
+        state.courseCertificates[certificate.courseId][courseCertIndex] = certificate;
+      } else {
+        state.courseCertificates[certificate.courseId].push(certificate);
+      }
+    },
+    updateCertificateStatus: (state, action: PayloadAction<{ certificateId: string; status: Certificate['status']; reason?: string }>) => {
+      const { certificateId, status, reason } = action.payload;
+      if (state.certificates[certificateId]) {
+        state.certificates[certificateId].status = status;
+        if (status === 'revoked') {
+          state.certificates[certificateId].revokedAt = new Date();
+          state.certificates[certificateId].revokedReason = reason;
+        }
+      }
+    },
+    setSettings: (state, action: PayloadAction<CertificateSettings>) => {
+      state.settings = action.payload;
+    },
+    updateSettings: (state, action: PayloadAction<Partial<CertificateSettings>>) => {
+      if (state.settings) {
+        state.settings = { ...state.settings, ...action.payload };
+      }
+    },
+    setError: (state, action: PayloadAction<string>) => {
+      state.error = action.payload;
+      state.loading = false;
+    },
+    clearError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(loadCertificateSettings.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loadCertificateSettings.fulfilled, (state, action) => {
+        state.loading = false;
+        state.settings = action.payload;
+      })
+      .addCase(createCertificateTemplate.fulfilled, (state, action) => {
+        state.templates[action.payload.id] = action.payload;
+      })
+      .addCase(generateCertificate.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(generateCertificate.fulfilled, (state, action) => {
+        state.loading = false;
+        const certificate = action.payload;
+        state.certificates[certificate.id] = certificate;
+        
+        // Add to user and course certificates
+        if (!state.userCertificates[certificate.studentId]) {
+          state.userCertificates[certificate.studentId] = [];
+        }
+        state.userCertificates[certificate.studentId].push(certificate);
+        
+        if (!state.courseCertificates[certificate.courseId]) {
+          state.courseCertificates[certificate.courseId] = [];
+        }
+        state.courseCertificates[certificate.courseId].push(certificate);
+      })
+      .addCase(generateCertificate.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to generate certificate';
+      })
+      .addCase(revokeCertificate.fulfilled, (state, action) => {
+        const { certificateId } = action.payload;
+        if (state.certificates[certificateId]) {
+          state.certificates[certificateId].status = 'revoked';
+          state.certificates[certificateId].revokedAt = new Date();
+        }
+      });
+  },
+});
+
+// ============================================================================
+// CERTIFICATE UTILITIES
+// ============================================================================
+
+export function generateCertificateNumber(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substr(2, 9);
+  return `CERT-${timestamp}-${random}`.toUpperCase();
+}
+
+export function generateVerificationCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 12; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+export function formatCertificateDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(new Date(date));
+}
+
+export function validateCertificateTemplate(template: Partial<CertificateTemplate>): string[] {
+  const errors: string[] = [];
+  
+  if (!template.name || template.name.trim().length === 0) {
+    errors.push('Template name is required');
+  }
+  
+  if (!template.template) {
+    errors.push('Template configuration is required');
+  } else {
+    if (!template.template.width || template.template.width <= 0) {
+      errors.push('Template width must be greater than 0');
+    }
+    
+    if (!template.template.height || template.template.height <= 0) {
+      errors.push('Template height must be greater than 0');
+    }
+    
+    if (!template.template.elements || template.template.elements.length === 0) {
+      errors.push('Template must have at least one element');
+    }
+  }
+  
+  return errors;
+}
+
+export function createDefaultTemplate(): Partial<CertificateTemplate> {
+  return {
+    name: 'Default Certificate Template',
+    description: 'A simple, professional certificate template',
+    template: {
+      width: 1056, // 11 inches * 96 DPI
+      height: 816, // 8.5 inches * 96 DPI
+      backgroundColor: '#ffffff',
+      layout: 'landscape',
+      elements: [
+        {
+          id: 'title',
+          type: 'text',
+          x: 528,
+          y: 150,
+          content: 'Certificate of Completion',
+          style: {
+            fontFamily: 'Georgia',
+            fontSize: 36,
+            fontWeight: 'bold',
+            color: '#2c3e50',
+            textAlign: 'center',
+          },
+          dynamic: false,
+        },
+        {
+          id: 'student-name',
+          type: 'text',
+          x: 528,
+          y: 250,
+          content: '{{studentName}}',
+          style: {
+            fontFamily: 'Georgia',
+            fontSize: 28,
+            color: '#34495e',
+            textAlign: 'center',
+          },
+          dynamic: true,
+          variable: 'studentName',
+        },
+        {
+          id: 'course-name',
+          type: 'text',
+          x: 528,
+          y: 350,
+          content: '{{courseName}}',
+          style: {
+            fontFamily: 'Georgia',
+            fontSize: 20,
+            color: '#34495e',
+            textAlign: 'center',
+          },
+          dynamic: true,
+          variable: 'courseName',
+        },
+        {
+          id: 'completion-date',
+          type: 'date',
+          x: 528,
+          y: 450,
+          content: '{{completionDate}}',
+          style: {
+            fontFamily: 'Georgia',
+            fontSize: 16,
+            color: '#7f8c8d',
+            textAlign: 'center',
+          },
+          dynamic: true,
+          variable: 'completionDate',
+        },
+        {
+          id: 'instructor-signature',
+          type: 'signature',
+          x: 200,
+          y: 600,
+          width: 200,
+          height: 50,
+          content: '{{instructorName}}',
+          style: {
+            fontFamily: 'Courier',
+            fontSize: 14,
+            color: '#34495e',
+            textAlign: 'center',
+          },
+          dynamic: true,
+          variable: 'instructorName',
+        },
+        {
+          id: 'date-issued',
+          type: 'date',
+          x: 656,
+          y: 600,
+          content: '{{issuedDate}}',
+          style: {
+            fontFamily: 'Georgia',
+            fontSize: 14,
+            color: '#7f8c8d',
+            textAlign: 'center',
+          },
+          dynamic: true,
+          variable: 'issuedDate',
+        },
+      ],
+    },
+    variables: [
+      { name: 'studentName', label: 'Student Name', type: 'text', required: true },
+      { name: 'courseName', label: 'Course Name', type: 'text', required: true },
+      { name: 'completionDate', label: 'Completion Date', type: 'date', required: true },
+      { name: 'instructorName', label: 'Instructor Name', type: 'text', required: true },
+      { name: 'issuedDate', label: 'Issue Date', type: 'date', required: true },
+    ],
+    isActive: true,
+  };
+}
+
+// ============================================================================
+// PLUGIN FACTORY
+// ============================================================================
+
+export function createCertificatesPlugin() {
+  return {
+    id: 'certificates',
+    name: 'Course Certificates & Credentials',
+    version: '1.0.0',
+    
+    initialize: async () => {
+      console.log('Certificates plugin initialized');
+    },
+    
+    slice: certificatesSlice,
+    
+    utils: {
+      generateCertificateNumber,
+      generateVerificationCode,
+      formatCertificateDate,
+      validateCertificateTemplate,
+      createDefaultTemplate,
+      
+      // Certificate eligibility
+      checkEligibility: (completion: any, settings: CertificateSettings) => {
+        if (!settings.enableCertificates) return false;
+        if (completion.finalScore < settings.minimumPassingScore) return false;
+        if (settings.requireManualApproval && !completion.approved) return false;
+        return true;
+      },
+      
+      // URL generators
+      getCertificateUrl: (certificateId: string) => `/certificates/${certificateId}`,
+      getVerificationUrl: (verificationCode: string) => `/verify/${verificationCode}`,
+      getShareableUrl: (certificateId: string) => `/certificates/share/${certificateId}`,
+      
+      // Social sharing
+      getLinkedInShareUrl: (certificate: Certificate) => {
+        const url = encodeURIComponent(certificate.shareableUrl);
+        const name = encodeURIComponent(certificate.courseName);
+        const organizationId = encodeURIComponent('your-organization-id');
+        const issueYear = new Date(certificate.issuedAt).getFullYear();
+        const issueMonth = new Date(certificate.issuedAt).getMonth() + 1;
+        
+        return `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${name}&organizationId=${organizationId}&issueYear=${issueYear}&issueMonth=${issueMonth}&certUrl=${url}`;
+      },
+    },
+    
+    // Event handlers
+    onCourseCompleted: (completion: any) => {
+      // Check if student is eligible for certificate
+      const store = (window as any).__courseFrameworkStore;
+      if (store) {
+        const state = store.getState();
+        const settings = state.certificates?.settings;
+        
+        if (settings && settings.enableCertificates) {
+          // Auto-generate certificate if eligible
+          store.dispatch(generateCertificate({
+            courseId: completion.courseId,
+            studentId: completion.studentId,
+            completionData: completion,
+          }));
+        }
+      }
+    },
+    
+    onCertificateGenerated: (certificate: Certificate) => {
+      // Send notification to student
+      eventBus.emit('notification:send', {
+        userId: certificate.studentId,
+        type: 'certificate_issued',
+        title: 'Certificate Issued!',
+        message: `Congratulations! You've earned a certificate for completing ${certificate.courseName}.`,
+        data: { certificateId: certificate.id },
+      });
+    }
+  };
+}
+
+// ============================================================================
+// REACT HOOKS
+// ============================================================================
+
+import { useAppSelector, useAppDispatch } from '@core/store';
+
+export function useCertificates() {
+  const dispatch = useAppDispatch();
+  const { 
+    templates, 
+    certificates, 
+    userCertificates, 
+    courseCertificates, 
+    settings, 
+    loading, 
+    error 
+  } = useAppSelector((state: any) => state.certificates || initialState);
+  
+  return {
+    templates,
+    certificates,
+    userCertificates,
+    courseCertificates,
+    settings,
+    loading,
+    error,
+    
+    // Actions
+    loadSettings: () => dispatch(loadCertificateSettings()),
+    createTemplate: (templateData: Partial<CertificateTemplate>) => dispatch(createCertificateTemplate(templateData)),
+    generateCertificate: (courseId: string, studentId: string, templateId?: string, completionData?: any) =>
+      dispatch(generateCertificate({ courseId, studentId, templateId, completionData })),
+    verifyCertificate: (verificationCode: string) => dispatch(verifyCertificate(verificationCode)),
+    revokeCertificate: (certificateId: string, reason: string) => dispatch(revokeCertificate({ certificateId, reason })),
+    shareToLinkedIn: (certificateId: string) => dispatch(shareCertificateToLinkedIn(certificateId)),
+    downloadCertificate: (certificateId: string, format?: 'pdf' | 'png' | 'jpg') =>
+      dispatch(downloadCertificate({ certificateId, format })),
+    
+    // State management
+    setCertificate: (certificate: Certificate) => dispatch(certificatesSlice.actions.setCertificate(certificate)),
+    updateSettings: (settings: Partial<CertificateSettings>) => dispatch(certificatesSlice.actions.updateSettings(settings)),
+    
+    // Computed values
+    getCertificate: (certificateId: string) => certificates[certificateId],
+    getUserCertificates: (userId: string) => userCertificates[userId] || [],
+    getCourseCertificates: (courseId: string) => courseCertificates[courseId] || [],
+    getTemplate: (templateId: string) => templates[templateId],
+    
+    // Helper functions
+    isEligibleForCertificate: (completion: any) => {
+      if (!settings) return false;
+      return settings.enableCertificates && 
+             completion.finalScore >= settings.minimumPassingScore &&
+             (!settings.requireManualApproval || completion.approved);
+    },
+  };
+}
+
+export const certificatesActions = certificatesSlice.actions;
+export default certificatesSlice.reducer;

@@ -1,0 +1,135 @@
+/* Course Editor Animations and Transitions */
+
+@keyframes spin {
+  from { 
+    transform: rotate(0deg); 
+  }
+  to { 
+    transform: rotate(360deg); 
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Animation classes */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Drag and drop styles */
+.dragging {
+  opacity: 0.5;
+  transform: rotate(5deg);
+}
+
+.drop-zone-active {
+  border-style: dashed !important;
+  border-width: 2px !important;
+}
+
+/* Content block editor styles */
+.content-block-editor {
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.content-block-editor:hover {
+  border-color: var(--course-builder-border);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Rich text editor styles */
+.rich-text-editor {
+  min-height: 120px;
+  padding: 0.75rem;
+  border: 1px solid var(--course-builder-border);
+  border-radius: 0.375rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.rich-text-editor:focus {
+  outline: none;
+  border-color: var(--course-builder-primary);
+  box-shadow: 0 0 0 1px var(--course-builder-primary);
+}
+
+/* Module and lesson item hover effects */
+.module-item:hover,
+.lesson-item:hover {
+  transform: translateX(2px);
+  transition: transform 0.2s;
+}
+
+/* Lesson grip and delete button hover effects */
+.lesson-item:hover .lesson-grip {
+  opacity: 1 !important;
+}
+
+.lesson-item:hover .lesson-delete-btn {
+  opacity: 1 !important;
+}
+
+/* Grid responsive classes for older browsers */
+@media (min-width: 1024px) {
+  .course-editor-grid {
+    grid-template-columns: 1fr 2fr;
+  }
+  
+  .content-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  .content-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 768px) {
+  .content-grid-md-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

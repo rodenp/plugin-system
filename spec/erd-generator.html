@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database ERD - Plugin System</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 95%;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .diagram {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .instructions {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+        }
+        .mermaid {
+            background-color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Plugin System Database Schema</h1>
+        
+        <div class="instructions">
+            <h3>To save as PNG:</h3>
+            <ol>
+                <li>Right-click on the diagram below</li>
+                <li>Select "Save image as..." or "Copy image"</li>
+                <li>Save or paste where needed</li>
+            </ol>
+            <p>Alternatively, you can take a screenshot or print this page.</p>
+        </div>
+
+        <div class="diagram">
+            <div class="mermaid">
+erDiagram
+    User {
+        string id PK
+        string username
+        string email
+        string name
+        string bio
+        string avatar
+        int level
+        int pointsToNext
+        datetime joinDate
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    Author {
+        string id PK
+        string userId FK
+        string name
+        string bio
+        string avatar
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    Community {
+        string id PK
+        string name
+        string description
+        string type
+        int memberCount
+        string ownerId FK
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    Post {
+        string id PK
+        string authorId FK
+        string content
+        int likes
+        int comments
+        boolean isPinned
+        string communityId FK
+        string category
+        int commentersCount
+        string newCommentTimeAgo
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    Comment {
+        string id PK
+        string postId FK
+        string authorId FK
+        string content
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    Course {
+        string id PK
+        string title
+        string description
+        string authorId FK
+        string communityId FK
+        datetime createdAt
+        datetime updatedAt
+        datetime lastSaved
+    }
+    
+    Module {
+        string id PK
+        string title
+        string description
+        string courseId FK
+        int order
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    Lesson {
+        string id PK
+        string title
+        string content
+        string type
+        string moduleId FK
+        int order
+        int duration
+        boolean isCompleted
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    PostLike {
+        string postId FK
+        string userId FK
+        datetime createdAt
+    }
+    
+    CommunityMember {
+        string communityId FK
+        string userId FK
+        string role
+        datetime joinedAt
+    }
+    
+    User ||--|| Author : has_author_profile
+    User ||--o{ Community : owns
+    User }o--o{ Community : member_of
+    User }o--o{ Post : likes
+    
+    Author ||--o{ Post : writes
+    Author ||--o{ Comment : writes
+    Author ||--o{ Course : creates
+    
+    Community ||--o{ Post : contains
+    Community ||--o{ Course : hosts
+    
+    Post ||--o{ Comment : has
+    Post ||--o{ PostLike : liked_by
+    
+    Course ||--o{ Module : contains
+    Module ||--o{ Lesson : contains
+    
+    User ||--o{ PostLike : likes_posts
+    User ||--o{ CommunityMember : joins
+    Community ||--o{ CommunityMember : has_members
+            </div>
+        </div>
+
+        <div style="margin-top: 40px;">
+            <h2>Foreign Key Mappings</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f0f0f0;">
+                        <th style="border: 1px solid #ddd; padding: 8px;">Table.Column</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">References</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;">Relationship</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Author.userId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">User.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">One-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Community.ownerId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">User.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Post.authorId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Author.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Post.communityId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Community.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Comment.postId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Post.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Comment.authorId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Author.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Course.authorId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Author.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Course.communityId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Community.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Module.courseId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Course.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Lesson.moduleId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Module.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-One</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">PostLike.postId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Post.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-Many (junction)</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">PostLike.userId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">User.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-Many (junction)</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">CommunityMember.communityId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Community.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-Many (junction)</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;">CommunityMember.userId</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">User.id</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;">Many-to-Many (junction)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            er: {
+                layoutDirection: 'LR',
+                minEntityWidth: 150,
+                minEntityHeight: 75,
+                entityPadding: 15,
+                useMaxWidth: true
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+export { communityPlugin } from './skool-community';

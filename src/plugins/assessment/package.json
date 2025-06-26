@@ -1,0 +1,15 @@
+{
+  "name": "@course-framework/assessment-plugin",
+  "version": "0.1.0",
+  "description": "Modular course creation framework with plugin system",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "files": [
+    "dist"
+  ],
+    "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

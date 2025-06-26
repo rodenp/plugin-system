@@ -1,0 +1,23 @@
+{
+  "name": "@course-framework/core",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "vite build --mode lib"
+  },
+  "dependencies": {
+    "@course-framework/types": "workspace:*",
+    "@course-framework/lib": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  }
+}

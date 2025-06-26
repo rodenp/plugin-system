@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 New Plugin System Demo - Storage Agnostic Architecture</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .loading-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: white;
+        }
+        
+        .loading-content {
+            text-align: center;
+            animation: fadeIn 0.8s ease-in;
+        }
+        
+        .loading-icon {
+            font-size: 64px;
+            margin-bottom: 24px;
+            animation: bounce 2s infinite;
+        }
+        
+        .loading-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .loading-subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        
+        .demo-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .demo-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .demo-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 24px;
+            height: calc(100vh - 200px);
+        }
+        
+        .plugin-selector {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+        
+        .plugin-display {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="new-plugin-demo-root">
+        <div class="loading-container">
+            <div class="loading-content">
+                <div class="loading-icon">🚀</div>
+                <h2 class="loading-title">New Plugin System Demo</h2>
+                <p class="loading-subtitle">Initializing storage-agnostic architecture with cross-plugin communication...</p>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/new-plugin-system-demo.tsx"></script>
+</body>
+</html>

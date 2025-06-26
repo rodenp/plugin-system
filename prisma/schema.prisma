@@ -1,0 +1,201 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  name         String
+  bio          String?
+  avatar       String?
+  level        Int      @default(1)
+  pointsToNext Int      @default(100)
+  joinDate     DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  author          Author?
+  ownedCommunities Community[] @relation("CommunityOwner")
+  communityMemberships CommunityMember[]
+  postLikes       PostLike[]
+
+  @@map("users")
+}
+
+// Author model - represents users who create content
+model Author {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  name        String
+  bio         String?
+  avatar      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id])
+  posts    Post[]
+  comments Comment[]
+  courses  Course[]
+
+  @@map("authors")
+}
+
+// Community model
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   @default("free") // 'free' | 'paid'
+  memberCount Int      @default(0)
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  owner   User     @relation("CommunityOwner", fields: [ownerId], references: [id])
+  members CommunityMember[]
+  posts   Post[]
+  courses Course[]
+
+  @@map("communities")
+}
+
+// Post model
+model Post {
+  id                 String   @id @default(cuid())
+  authorId           String
+  content            String
+  likes              Int      @default(0)
+  comments           Int      @default(0)
+  isPinned           Boolean  @default(false)
+  communityId        String
+  category           String   @default("general")
+  commentersCount    Int      @default(0)
+  newCommentTimeAgo  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  author        Author      @relation(fields: [authorId], references: [id])
+  community     Community   @relation(fields: [communityId], references: [id])
+  postComments  Comment[]
+  postLikes     PostLike[]
+
+  @@map("posts")
+}
+
+// Comment model
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author Author @relation(fields: [authorId], references: [id])
+
+  @@map("comments")
+}
+
+// Course model
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  authorId    String
+  communityId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastSaved   DateTime @default(now())
+
+  // Relations
+  author    Author    @relation(fields: [authorId], references: [id])
+  community Community @relation(fields: [communityId], references: [id])
+  modules   Module[]
+
+  @@map("courses")
+}
+
+// Module model
+model Module {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  courseId    String
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@map("modules")
+}
+
+// Lesson model
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  content     String?
+  type        String   @default("text") // 'text' | 'video' | 'quiz' | 'assignment'
+  moduleId    String
+  order       Int      @default(0)
+  duration    Int?     // Duration in minutes
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@map("lessons")
+}
+
+// PostLike junction model (many-to-many relationship)
+model PostLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("post_likes")
+}
+
+// CommunityMember junction model (many-to-many relationship)
+model CommunityMember {
+  communityId String
+  userId      String
+  role        String   @default("member") // 'member' | 'moderator' | 'admin'
+  joinedAt    DateTime @default(now())
+
+  // Relations
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([communityId, userId])
+  @@map("community_members")
+}
