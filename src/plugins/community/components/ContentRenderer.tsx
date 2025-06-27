@@ -11,8 +11,12 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content, theme
     // If excluding GIFs, filter them out first
     const processedContent = excludeGifs ? content.replace(/!\[GIF\]\([^)]+\)/g, '').trim() : content
     
-    
     if (!processedContent) return null
+
+    // If content contains HTML (from rich text editor), render it directly
+    if (processedContent.includes('<a href=')) {
+      return <div dangerouslySetInnerHTML={{ __html: processedContent }} />
+    }
     // More comprehensive URL regex
     const urlRegex = /(https?:\/\/(?:[-\w.])+(?::[0-9]+)?(?:\/(?:[\w/_.])*)?(?:\?(?:[\w&=%.])*)?(?:#(?:[\w.])*)?)/g
     const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g

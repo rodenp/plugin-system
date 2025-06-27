@@ -4,7 +4,7 @@ import { defaultTheme } from '../shared/default-theme'
 import { PostDetailModal } from './components/PostDetailModal'
 import { WritePostSection } from './components/WritePostSection'
 import { CreatePostModal } from './components/CreatePostModal'
-import { MediaCarousel } from './components/MediaCarousel'
+import { UnifiedCarousel } from './components/UnifiedCarousel'
 import { ContentRenderer } from './components/ContentRenderer'
 import { CommunityService } from './community-service'
 import type { CommunityPost } from './types'
@@ -246,13 +246,14 @@ const PostCard: React.FC<{
       )}
       
       {/* All media in unified carousel */}
-      <MediaCarousel
+      <UnifiedCarousel
+        key={`feed-carousel-${post.id}`}
         attachments={post.attachments}
         videoUrl={post.videoUrl}
         pollData={(post as any).pollData}
         content={post.content}
         theme={theme}
-        compact={true}
+        type="post-feed"
       />
     </div>
 

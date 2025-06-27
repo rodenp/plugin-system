@@ -4,7 +4,7 @@ import type { CommentItemProps, PostComment } from '../types'
 import { defaultTheme } from '../../shared/default-theme'
 import { ReplyForm } from './ReplyForm'
 import { ContentRenderer } from './ContentRenderer'
-import { MediaCarousel } from './MediaCarousel'
+import { UnifiedCarousel } from './UnifiedCarousel'
 
 export const CommentItem: React.FC<CommentItemProps> = ({
   comment,
@@ -109,14 +109,14 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             
             {/* All media in unified carousel */}
             <div className="mt-3">
-              <MediaCarousel
+              <UnifiedCarousel
+                key={`comment-carousel-${comment.id}`}
                 attachments={(comment as any).attachments}
                 videoUrl={comment.videoUrl}
                 pollData={(comment as any).pollData}
                 content={comment.content}
                 theme={defaultTheme}
-                compact={true}
-                showCloseButton={false}
+                type="comment"
               />
             </div>
             

@@ -1,11 +1,12 @@
 import * as React from 'react'
-import { X, MessageCircle, MoreHorizontal, Send, Link } from 'lucide-react'
+import { X, MessageCircle, MoreHorizontal, Link } from 'lucide-react'
 import type { PostDetailModalProps, CommunityPost, PostComment } from '../types'
 import { defaultTheme } from '../../shared/default-theme'
 import { CommentItem } from './CommentItem'
-import { ComposeToolbar } from './ComposeToolbar'
+import { UnifiedToolbar } from './UnifiedToolbar'
 import { ContentRenderer } from './ContentRenderer'
-import { MediaCarousel } from './MediaCarousel'
+import { UnifiedCarousel } from './UnifiedCarousel'
+import { RichTextArea } from './RichTextArea'
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   isOpen,
@@ -22,7 +23,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   // Comment box state
   const [commentContent, setCommentContent] = React.useState('')
   const [isSubmittingComment, setIsSubmittingComment] = React.useState(false)
-  const commentTextareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const commentTextareaRef = React.useRef<HTMLDivElement>(null)
   
   // ComposeToolbar state
   const [linkUrl, setLinkUrl] = React.useState('')
@@ -159,11 +160,17 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
     return colors[category as keyof typeof colors] || '#6B7280'
   }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement> | any) => {
+    // Handle GIF attachment from ComposeToolbar
+    if (event.gifAttachment) {
+      setAttachments(prev => [...prev, event.gifAttachment])
+      return
+    }
+    
     const files = event.target.files
     if (!files) return
 
-    Array.from(files).forEach(file => {
+    Array.from(files as FileList).forEach((file: File) => {
       const maxSize = 2 * 1024 * 1024 // 2MB limit
       if (file.size > maxSize) {
         alert(`File "${file.name}" is too large. Maximum size is 2MB.`)
@@ -312,14 +319,14 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
             
             {/* All media in unified carousel */}
             <div className="mb-4">
-              <MediaCarousel
+              <UnifiedCarousel
+                key={`detail-carousel-${post.id}`}
                 attachments={(post as any).attachments}
                 videoUrl={post.videoUrl}
                 pollData={(post as any).pollData}
                 content={post.content}
                 theme={defaultTheme}
-                compact={false}
-                showCloseButton={false}
+                type="post-detail"
               />
             </div>
             
@@ -436,152 +443,52 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
                 {/* Comment input */}
                 <div className="flex-1">
-                  <textarea
+                  <RichTextArea
                     ref={commentTextareaRef}
                     value={commentContent}
-                    onChange={(e) => setCommentContent(e.target.value)}
+                    onChange={setCommentContent}
                     placeholder="Write a comment..."
-                    className="w-full resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows={1}
-                    style={{ minHeight: '36px', maxHeight: '100px' }}
-                    onInput={(e) => {
-                      const target = e.target as HTMLTextAreaElement
-                      target.style.height = 'auto'
-                      target.style.height = Math.min(target.scrollHeight, 100) + 'px'
+                    style={{
+                      width: '100%',
+                      resize: 'none',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem 0.75rem',
+                      fontSize: '0.875rem',
+                      minHeight: '36px',
+                      maxHeight: '100px',
+                      outline: 'none'
                     }}
                   />
                 </div>
               </div>
 
-              {/* ComposeToolbar */}
+              {/* UnifiedToolbar */}
               <div className="ml-11">
-                <ComposeToolbar
+                <UnifiedToolbar
                   theme={defaultTheme}
                   content={commentContent}
                   setContent={setCommentContent}
                   contentRef={commentTextareaRef}
                   linkUrl={linkUrl}
                   setLinkUrl={setLinkUrl}
-                  onFileUpload={handleFileUpload}
                   videoUrl={videoUrl}
                   setVideoUrl={setVideoUrl}
                   mediaType={mediaType}
                   setMediaType={setMediaType}
                   pollOptions={pollOptions}
                   setPollOptions={setPollOptions}
-                  showPoll={true}
-                  showVideo={true}
-                  showAttachment={true}
+                  attachments={attachments}
+                  setAttachments={setAttachments}
+                  onFileUpload={handleFileUpload}
                   compact={true}
+                  showSubmit={true}
+                  submitLabel="Post"
+                  onSubmit={handleSubmitComment}
+                  isSubmitting={isSubmittingComment}
+                  placeholder="Write a comment..."
                 />
-              </div>
-
-              {/* Media-specific inputs */}
-              <div className="ml-11">
-                {mediaType === 'video' && (
-                  <input
-                    type="url"
-                    placeholder="Enter video URL (YouTube, Vimeo, etc.)"
-                    value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
-                  />
-                )}
-
-                {mediaType === 'poll' && (
-                  <div className="mb-3">
-                    <div className="text-sm font-semibold text-gray-900 mb-2">
-                      Poll Options
-                    </div>
-                    {pollOptions.map((option, index) => (
-                      <div key={index} className="flex gap-2 mb-2">
-                        <input
-                          type="text"
-                          placeholder={`Option ${index + 1}`}
-                          value={option}
-                          onChange={(e) => {
-                            const newOptions = [...pollOptions]
-                            newOptions[index] = e.target.value
-                            setPollOptions(newOptions)
-                          }}
-                          className="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        {pollOptions.length > 2 && (
-                          <button
-                            onClick={() => {
-                              const newOptions = pollOptions.filter((_, i) => i !== index)
-                              setPollOptions(newOptions)
-                            }}
-                            className="p-2 text-red-500 hover:text-red-700"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {pollOptions.length < 5 && (
-                      <button
-                        onClick={() => setPollOptions([...pollOptions, ''])}
-                        className="text-sm text-blue-600 hover:text-blue-800 border border-dashed border-gray-300 rounded p-2 w-full"
-                      >
-                        + Add Option
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Attachments Display */}
-                {attachments.length > 0 && (
-                  <div className="mb-3">
-                    <div className="text-sm font-semibold text-gray-900 mb-2">
-                      Attachments ({attachments.length})
-                    </div>
-                    <div className="flex gap-2 overflow-x-auto">
-                      {attachments.map((attachment) => (
-                        <div key={attachment.id} className="relative min-w-[80px] h-20 bg-gray-100 rounded border overflow-hidden">
-                          {attachment.file.type.startsWith('image/') ? (
-                            <img
-                              src={attachment.preview}
-                              alt={attachment.file.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-xs text-gray-600">
-                              <div>📄</div>
-                              <div className="truncate w-full px-1 text-center">
-                                {attachment.file.name.length > 8 
-                                  ? attachment.file.name.substring(0, 8) + '...' 
-                                  : attachment.file.name}
-                              </div>
-                            </div>
-                          )}
-                          <button
-                            onClick={() => setAttachments(prev => prev.filter(att => att.id !== attachment.id))}
-                            className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-xs rounded-bl flex items-center justify-center hover:bg-red-600"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Submit button */}
-              <div className="flex justify-end mt-3 ml-11">
-                <button
-                  type="submit"
-                  disabled={!commentContent.trim() || isSubmittingComment}
-                  className={`flex items-center space-x-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    commentContent.trim() && !isSubmittingComment
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  <Send className="w-4 h-4" />
-                  <span>{isSubmittingComment ? 'Posting...' : 'Post'}</span>
-                </button>
               </div>
             </form>
           </div>

@@ -246,6 +246,7 @@ export interface PostDetailModalProps {
   isOpen: boolean;
   post: CommunityPost | null;
   currentUser: any;
+  theme?: any;
   onClose: () => void;
   onLikePost: (postId: string) => Promise<void>;
   onUnlikePost: (postId: string) => Promise<void>;
@@ -257,6 +258,7 @@ export interface PostDetailModalProps {
 export interface CommentItemProps {
   comment: PostComment;
   currentUser: any;
+  theme?: any;
   onLike: (commentId: string) => Promise<void>;
   onUnlike: (commentId: string) => Promise<void>;
   onReply: (content: string, parentId: string, mediaData?: any) => Promise<void>;

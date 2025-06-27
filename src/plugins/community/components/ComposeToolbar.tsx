@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { EmojiPickerModal } from './EmojiPickerModal'
 
 interface ComposeToolbarProps {
   theme: any
@@ -87,12 +88,29 @@ export const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
 
   const insertEmojiAtCursor = (emoji: string) => {
     insertAtCursor(emoji)
-    setShowEmojiPicker(false)
   }
 
-  const insertGifAtCursor = (gifUrl: string) => {
-    const gifMarkdown = `![GIF](${gifUrl})`
-    insertAtCursor(gifMarkdown)
+  const insertGifAtCursor = (gifUrl: string, onFileUpload?: (event: any) => void) => {
+    if (onFileUpload) {
+      // Create a fake file event for GIF URL
+      const gifAttachment = {
+        id: `gif_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        file: new File([], 'GIF', { type: 'image/gif' }),
+        preview: gifUrl
+      }
+      // Simulate a file upload event
+      const fakeEvent = {
+        target: {
+          files: null
+        },
+        gifAttachment // Pass the gif data
+      }
+      onFileUpload(fakeEvent)
+    } else {
+      // Fallback to old method
+      const gifMarkdown = `![GIF](${gifUrl})`
+      insertAtCursor(gifMarkdown)
+    }
     setShowGifPicker(false)
   }
 
@@ -162,6 +180,7 @@ export const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
             <span>Video</span>
           </button>
         )}
+
         
         {/* Poll */}
         {showPoll && setMediaType && (
@@ -280,56 +299,13 @@ export const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
         </div>
       </div>
 
-      {/* Emoji Picker */}
-      {showEmojiPicker && (
-        <div style={{
-          marginBottom: theme.spacing.sm,
-          padding: theme.spacing.sm,
-          border: `1px solid ${theme.borders.borderColor}`,
-          borderRadius: theme.borders.borderRadius,
-          backgroundColor: theme.colors.surfaceAlt,
-          maxHeight: compact ? '150px' : '200px',
-          overflowY: 'auto'
-        }}>
-          <div style={{
-            fontSize: theme.font.sizeXs,
-            fontWeight: 600,
-            color: theme.colors.textPrimary,
-            marginBottom: theme.spacing.xs
-          }}>
-            Select Emoji
-          </div>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: compact ? 'repeat(6, 1fr)' : 'repeat(8, 1fr)',
-            gap: compact ? '4px' : '8px'
-          }}>
-            {['😀', '😂', '😊', '😍', '🤔', '😭', '😎', '🔥', '💯', '👍', '👎', '❤️', '💔', '🎉', '🎊', '👏', '🙌', '🤝', '💪', '🙏', '✨', '⭐', '🌟', '💎', '🏆', '🎯', '⚡', '💡', '🚀', '🎨', '🎵', '🎪'].map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => insertEmojiAtCursor(emoji)}
-                style={{
-                  padding: compact ? '4px' : '8px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  backgroundColor: theme.colors.surface,
-                  fontSize: compact ? '16px' : '20px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.colors.muted + '30'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = theme.colors.surface
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Emoji Picker Modal */}
+      <EmojiPickerModal
+        isOpen={showEmojiPicker}
+        onClose={() => setShowEmojiPicker(false)}
+        onEmojiClick={insertEmojiAtCursor}
+        theme={theme}
+      />
 
       {/* GIF Picker */}
       {showGifPicker && (
@@ -348,7 +324,7 @@ export const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
             color: theme.colors.textPrimary,
             marginBottom: theme.spacing.xs
           }}>
-            Select GIF
+            Click a GIF to add to your post
           </div>
           <div style={{
             display: 'grid',
@@ -365,7 +341,7 @@ export const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
             ].map((gifUrl, index) => (
               <button
                 key={index}
-                onClick={() => insertGifAtCursor(gifUrl)}
+                onClick={() => insertGifAtCursor(gifUrl, onFileUpload)}
                 style={{
                   padding: '4px',
                   border: 'none',

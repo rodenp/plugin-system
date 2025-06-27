@@ -1,1 +1,0 @@
-export { classroomPlugin } from './skool-classroom';
