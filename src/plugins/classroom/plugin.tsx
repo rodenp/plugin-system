@@ -3,8 +3,8 @@ import { Plugin, PluginFactory } from '@/core/plugin-manager';
 import { CommunityContext } from '../../types/multi-tenant';
 import { CourseProvider } from '@/core/course-context';
 
-// Import course builder public API
-import { useCourseBuilderComponent } from '../course-builder';
+// Import universal plugin component hook
+import { usePluginComponent } from '../../core/hooks/usePluginComponent';
 
 // Skool-style course display component
 interface Course {
@@ -542,10 +542,10 @@ const ClassroomContent: React.FC<ClassroomContentProps> = ({
   const [showDropdownMenu, setShowDropdownMenu] = React.useState<string | null>(null);
   const [showEditModal, setShowEditModal] = React.useState(false);
 
-  // Get components from course builder plugin
-  const CreateCourseForm = useCourseBuilderComponent('CreateCourseForm');
-  const CourseEditor = useCourseBuilderComponent('CourseEditor');
-  const CourseViewer = useCourseBuilderComponent('CourseViewer');
+  // Get components from course builder plugin using service registry
+  const CreateCourseForm = usePluginComponent('course-builder', 'CreateCourseForm');
+  const CourseEditor = usePluginComponent('course-builder', 'CourseEditor');
+  const CourseViewer = usePluginComponent('course-builder', 'CourseViewer');
 
   // Don't render if components aren't available yet
   if (!CreateCourseForm || !CourseEditor || !CourseViewer) {

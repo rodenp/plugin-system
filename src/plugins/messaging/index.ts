@@ -1,4 +1,5 @@
 import type { Plugin } from '../../types/plugin-interface';
+import { pluginRegistry } from '../../store/plugin-registry';
 import { PostDetailModal } from './components/PostDetailModal';
 import { CommentItem } from './components/CommentItem';
 import { ReplyForm } from './components/ReplyForm';
@@ -7,6 +8,7 @@ import { WritePostSection } from './components/WritePostSection';
 import { ContentRenderer } from './components/ContentRenderer';
 import { UnifiedCarousel } from './components/UnifiedCarousel';
 import { AttachmentDownloadModal } from './components/AttachmentDownloadModal';
+import { PostDropdownMenu } from './components/PostDropdownMenu';
 import { MessagingDemo } from './MessagingDemo';
 
 export const messagingPlugin: Plugin = {
@@ -17,23 +19,25 @@ export const messagingPlugin: Plugin = {
   icon: '💬',
   order: 1,
   onInstall: async () => {
-    // Expose components globally for dependent plugins
-    (window as any).__messagingComponents = {
-      PostDetailModal,
-      CommentItem,
-      ReplyForm,
-      CreatePostModal,
-      WritePostSection,
-      ContentRenderer,
-      UnifiedCarousel,
-      AttachmentDownloadModal,
-      MessagingFeedComponent: MessagingDemo, // Export the feed component for community plugin
-    };
-    console.log('🔌 Messaging plugin initialized');
+    // Register components with service registry
+    pluginRegistry.registerService('messaging', {
+      version: '1.0.0',
+      components: {
+        PostDetailModal,
+        CommentItem,
+        ReplyForm,
+        CreatePostModal,
+        WritePostSection,
+        ContentRenderer,
+        UnifiedCarousel,
+        AttachmentDownloadModal,
+        PostDropdownMenu,
+        MessagingFeedComponent: MessagingDemo, // Export the feed component for community plugin
+      }
+    });
+    console.log('🔌 Messaging plugin initialized with service registry');
   },
   onUninstall: async () => {
-    // Clean up global components
-    delete (window as any).__messagingComponents;
     console.log('🔌 Messaging plugin destroyed');
   }
 };

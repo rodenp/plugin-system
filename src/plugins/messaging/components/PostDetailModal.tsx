@@ -18,6 +18,8 @@ export const PostDetailModal: React.FC<PostDetailModalProps & { loadingComments?
   onAddComment,
   onLikeComment,
   onUnlikeComment,
+  onEditComment,
+  onDeleteComment,
   loadingComments = false
 }) => {
   
@@ -415,6 +417,8 @@ export const PostDetailModal: React.FC<PostDetailModalProps & { loadingComments?
                         onLike={onLikeComment}
                         onUnlike={onUnlikeComment}
                         onReply={handleReplyToComment}
+                        onEdit={onEditComment}
+                        onDelete={onDeleteComment}
                         maxDepth={3}
                       />
                     ))

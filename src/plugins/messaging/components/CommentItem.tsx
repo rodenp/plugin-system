@@ -5,6 +5,7 @@ import { defaultTheme } from '../../shared/default-theme'
 import { ReplyForm } from './ReplyForm'
 import { ContentRenderer } from './ContentRenderer'
 import { UnifiedCarousel } from './UnifiedCarousel'
+import { RichTextArea } from './RichTextArea'
 
 export const CommentItem: React.FC<CommentItemProps> = ({
   comment,
@@ -12,12 +13,16 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   onLike,  
   onUnlike,
   onReply,
+  onEdit,
+  onDelete,
   maxDepth = 3
 }) => {
   const [showReplyForm, setShowReplyForm] = React.useState(false)
   // Always show replies by default, let user hide them if needed
   const [showReplies, setShowReplies] = React.useState(true)
   const [showAllReplies, setShowAllReplies] = React.useState(false)
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [editContent, setEditContent] = React.useState(comment.content)
 
   const handleLikeComment = async () => {
     try {
@@ -37,6 +42,46 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       setShowReplyForm(false)
     } catch (error) {
       console.error('Error adding reply:', error)
+    }
+  }
+
+  const handleStartEdit = () => {
+    setEditContent(comment.content)
+    setIsEditing(true)
+  }
+
+  const handleCancelEdit = () => {
+    setEditContent(comment.content)
+    setIsEditing(false)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim() || editContent === comment.content) {
+      handleCancelEdit()
+      return
+    }
+
+    try {
+      if (onEdit) {
+        await onEdit(comment.id, editContent.trim())
+        setIsEditing(false)
+      }
+    } catch (error) {
+      console.error('Error editing comment:', error)
+      alert('Error saving changes. Please try again.')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (confirm('Are you sure you want to delete this comment? This will also delete all replies.')) {
+      try {
+        if (onDelete) {
+          await onDelete(comment.id)
+        }
+      } catch (error) {
+        console.error('Error deleting comment:', error)
+        alert('Error deleting comment. Please try again.')
+      }
     }
   }
 
@@ -104,7 +149,29 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             </div>
             
             <div className="text-sm text-gray-700">
-              <ContentRenderer content={comment.content} theme={defaultTheme} excludeGifs={true} />
+              {isEditing ? (
+                <div className="space-y-3">
+                  <RichTextArea
+                    value={editContent}
+                    onChange={setEditContent}
+                    placeholder="Edit your comment..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      resize: 'none',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem 0.75rem',
+                      fontSize: '0.875rem',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                      backgroundColor: '#ffffff'
+                    }}
+                  />
+                </div>
+              ) : (
+                <ContentRenderer content={comment.content} theme={defaultTheme} excludeGifs={true} />
+              )}
             </div>
             
             {/* All media in unified carousel */}
@@ -174,17 +241,35 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               </button>
             )}
             
-            {currentUser?.id === comment.authorId && (
-              <button 
-                onClick={() => alert(`Edit comment ${comment.id} - Edit functionality not implemented yet`)}
-                className="opacity-0 group-hover:opacity-100 text-xs text-gray-500 hover:text-gray-700 font-medium transition-opacity">
-                Edit
-              </button>
+            {currentUser?.id === comment.authorId && !isEditing && (
+              <>
+                <button 
+                  onClick={handleStartEdit}
+                  className="opacity-0 group-hover:opacity-100 text-xs text-gray-500 hover:text-gray-700 font-medium transition-opacity">
+                  Edit
+                </button>
+                <button 
+                  onClick={handleDelete}
+                  className="opacity-0 group-hover:opacity-100 text-xs text-red-500 hover:text-red-700 font-medium transition-opacity">
+                  Delete
+                </button>
+              </>
             )}
             
-            <button className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-gray-600 transition-opacity">
-              <MoreHorizontal className="w-3 h-3" />
-            </button>
+            {isEditing && (
+              <>
+                <button 
+                  onClick={handleSaveEdit}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                  Save
+                </button>
+                <button 
+                  onClick={handleCancelEdit}
+                  className="text-xs text-gray-500 hover:text-gray-700 font-medium">
+                  Cancel
+                </button>
+              </>
+            )}
           </div>
 
           {/* Reply form */}
@@ -227,6 +312,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
                       onLike={onLike}
                       onUnlike={onUnlike}
                       onReply={onReply}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
                       maxDepth={maxDepth}
                     />
                   ))}

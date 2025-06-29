@@ -2255,10 +2255,8 @@ export function CourseEditor({
         <div style={{ 
           maxWidth: '80rem', 
           margin: '0 auto', 
-          padding: '1rem',
-          '@media (min-width: 640px)': { padding: '1rem 1.5rem' },
-          '@media (min-width: 1024px)': { padding: '1rem 2rem' }
-        }}>
+          padding: '1rem'
+        }} className="course-editor-header-container">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Button variant="ghost" onClick={onBack || onCancel} theme={appliedTheme}>
               <ArrowLeft style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
@@ -2296,17 +2294,29 @@ export function CourseEditor({
       <div style={{ 
         maxWidth: '80rem', 
         margin: '0 auto', 
-        padding: '2rem 1rem',
-        '@media (min-width: 640px)': { padding: '2rem 1.5rem' },
-        '@media (min-width: 1024px)': { padding: '2rem 2rem' }
-      }}>
+        padding: '2rem 1rem'
+      }} className="course-editor-main-container">
         <div className="course-editor-main-grid" style={{ 
           display: 'grid', 
           gridTemplateColumns: '1fr', 
           gap: '2rem'
         }}>
           <style>{`
+            @media (min-width: 640px) {
+              .course-editor-header-container {
+                padding: 1rem 1.5rem !important;
+              }
+              .course-editor-main-container {
+                padding: 2rem 1.5rem !important;
+              }
+            }
             @media (min-width: 1024px) { 
+              .course-editor-header-container {
+                padding: 1rem 2rem !important;
+              }
+              .course-editor-main-container {
+                padding: 2rem 2rem !important;
+              }
               .course-editor-main-grid { 
                 grid-template-columns: 1fr 2fr !important; 
               } 

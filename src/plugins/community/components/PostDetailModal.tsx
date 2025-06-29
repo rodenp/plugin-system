@@ -14,7 +14,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   currentUser,
   onClose,
   onLikePost,
-  onUnlikePost,
+  onUnlikePost: _onUnlikePost, // Not used - onLikePost handles toggle
   onAddComment,
   onLikeComment,
   onUnlikeComment
@@ -61,11 +61,8 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
   const handleLikePost = async () => {
     try {
-      if (post.likedByUser) {
-        await onUnlikePost(post.id)
-      } else {
-        await onLikePost(post.id)
-      }
+      // Just call onLikePost - it handles the toggle logic
+      await onLikePost(post.id)
     } catch (error) {
       console.error('Error toggling post like:', error)
     }

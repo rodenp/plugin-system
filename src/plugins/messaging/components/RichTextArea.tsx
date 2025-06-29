@@ -75,13 +75,18 @@ export const RichTextArea = React.forwardRef<HTMLDivElement, RichTextAreaProps>(
 
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
     const element = e.currentTarget
-    const html = element.innerHTML
+    let html = element.innerHTML
+    
+    // Normalize empty content
+    if (html === '<br>' || html === '<div><br></div>') {
+      html = ''
+    }
     
     // Check if the HTML contains actual link elements (not just markdown)
     const hasHtmlLinks = html.includes('<a href=')
     
-    if (hasHtmlLinks) {
-      // If we have HTML links, preserve the HTML format and don't convert to markdown
+    if (hasHtmlLinks || html.includes('<br')) {
+      // If we have HTML links or line breaks, preserve the HTML format
       lastValueRef.current = html
       onChange(html)
     } else {
@@ -93,14 +98,37 @@ export const RichTextArea = React.forwardRef<HTMLDivElement, RichTextAreaProps>(
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Call the parent's onKeyDown handler first
-    onKeyDown?.(e)
-    
-    // Handle Enter key (only if not prevented by parent)
-    if (!e.defaultPrevented && e.key === 'Enter' && !e.shiftKey) {
+    // Handle Enter key - allow line breaks
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // Insert a line break for Enter key (not Shift+Enter)
       e.preventDefault()
-      document.execCommand('insertHTML', false, '<br>')
+      e.stopPropagation() // Prevent form submission
+      
+      // Insert line break at cursor position
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        range.deleteContents()
+        
+        // Insert a br element
+        const br = document.createElement('br')
+        range.insertNode(br)
+        
+        // Move cursor after the br
+        range.setStartAfter(br)
+        range.setEndAfter(br)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+      
+      // Trigger input event to update the value
+      const inputEvent = new Event('input', { bubbles: true })
+      e.currentTarget.dispatchEvent(inputEvent)
+      return
     }
+    
+    // Call the parent's onKeyDown handler for other keys
+    onKeyDown?.(e)
   }
 
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {

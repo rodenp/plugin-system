@@ -3360,14 +3360,14 @@ const DemoContent: React.FC = () => {
         const commentsData = localStorage.getItem(commentsKey);
         comments = commentsData ? JSON.parse(commentsData) : [];
       } else if (storageBackend === 'indexedDB') {
-        const request = indexedDB.open('plugin_data', 1);
+        const request = indexedDB.open('plugin_data', 3);
         const db = await new Promise<IDBDatabase>((resolve, reject) => {
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => reject(request.error);
         });
         
-        const transaction = db.transaction(['comments'], 'readonly');
-        const commentsStore = transaction.objectStore('comments');
+        const transaction = db.transaction(['demo-posts'], 'readonly');
+        const commentsStore = transaction.objectStore('demo-posts');
         
         const commentsRequest = commentsStore.get(commentsKey);
         const commentsData = await new Promise<any>((resolve, reject) => {
@@ -3463,14 +3463,14 @@ const DemoContent: React.FC = () => {
       localStorage.setItem(commentsKey, JSON.stringify(existingComments));
     } else if (storageBackend === 'indexedDB') {
       try {
-        const request = indexedDB.open('plugin_data', 1);
+        const request = indexedDB.open('plugin_data', 3);
         const db = await new Promise<IDBDatabase>((resolve, reject) => {
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => reject(request.error);
         });
         
-        const transaction = db.transaction(['comments'], 'readwrite');
-        const commentsStore = transaction.objectStore('comments');
+        const transaction = db.transaction(['demo-posts'], 'readwrite');
+        const commentsStore = transaction.objectStore('demo-posts');
         
         // Get existing comments
         const existingRequest = commentsStore.get(commentsKey);
@@ -3544,6 +3544,469 @@ const DemoContent: React.FC = () => {
       postId, 
       postTitle: post?.content?.substring(0, 50) 
     }, 'community');
+  };
+
+  // Post edit and delete handlers
+  const handleEditPost = async (postId: string, updates: { title?: string; content: string; category?: string; mediaData?: any }) => {
+    try {
+      const post = posts.find(p => p.id === postId);
+      if (!post) {
+        showWarning('Edit Failed', 'Post not found.');
+        return;
+      }
+
+      // Check if current user is the author
+      if (post.authorId !== (mockUser?.id || 'anonymous')) {
+        showWarning('Edit Failed', 'You can only edit your own posts.');
+        return;
+      }
+
+      // Extract media data from updates
+      const { mediaData, ...basicUpdates } = updates;
+      
+      // Build the updated post object
+      const postUpdates: any = {
+        ...basicUpdates,
+        isEdited: true,
+        updatedAt: new Date().toISOString()
+      };
+
+      // Handle media data updates
+      if (mediaData) {
+        // Clear existing media fields
+        postUpdates.videoUrl = undefined;
+        postUpdates.linkUrl = undefined;
+        postUpdates.pollData = undefined;
+        postUpdates.attachments = undefined;
+
+        // Set new media data based on type
+        if (mediaData.type === 'video' && mediaData.url) {
+          postUpdates.videoUrl = mediaData.url;
+        } else if (mediaData.type === 'link' && mediaData.url) {
+          postUpdates.linkUrl = mediaData.url;
+        } else if (mediaData.type === 'poll' && mediaData.options) {
+          postUpdates.pollData = mediaData;
+        }
+        
+        // Handle attachments
+        if (mediaData.attachments && mediaData.attachments.length > 0) {
+          postUpdates.attachments = mediaData.attachments;
+        }
+      }
+
+      const updatedPosts = posts.map((p: any) => 
+        p.id === postId 
+          ? { ...p, ...postUpdates } 
+          : p
+      );
+      
+      setPosts(updatedPosts);
+      await savePostsToStorage(updatedPosts);
+      
+      // Emit event
+      newEventBus.emit(EVENTS.POST_UPDATED, { postId, updates: { ...basicUpdates, ...postUpdates } }, 'community');
+      showInfo('Post Updated!', 'Your changes have been saved.');
+    } catch (error) {
+      console.error('Error editing post:', error);
+      showWarning('Edit Failed', 'Failed to update post. Please try again.');
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      const post = posts.find(p => p.id === postId);
+      if (!post) {
+        showWarning('Delete Failed', 'Post not found.');
+        return;
+      }
+
+      // Check if current user is the author
+      if (post.authorId !== (mockUser?.id || 'anonymous')) {
+        showWarning('Delete Failed', 'You can only delete your own posts.');
+        return;
+      }
+
+      const updatedPosts = posts.filter((p: any) => p.id !== postId);
+      setPosts(updatedPosts);
+      await savePostsToStorage(updatedPosts);
+
+      // Also delete associated comments
+      const storagePrefix = `${storageBackend}_course_framework_community`;
+      const commentsKey = `${storagePrefix}_post_comments_${postId}`;
+      
+      if (storageBackend === 'localStorage') {
+        localStorage.removeItem(commentsKey);
+      } else if (storageBackend === 'indexedDB') {
+        const request = indexedDB.open('plugin_data', 3);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        
+        const transaction = db.transaction(['demo-posts'], 'readwrite');
+        const commentsStore = transaction.objectStore('demo-posts');
+        await new Promise((resolve, reject) => {
+          const deleteRequest = commentsStore.delete(commentsKey);
+          deleteRequest.onsuccess = () => resolve(deleteRequest.result);
+          deleteRequest.onerror = () => reject(deleteRequest.error);
+        });
+        
+        db.close();
+      }
+      
+      // Emit event
+      newEventBus.emit(EVENTS.POST_DELETED, { postId, postTitle: post.content?.substring(0, 50) }, 'community');
+      showWarning('Post Deleted', 'Your post has been removed.');
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      showWarning('Delete Failed', 'Failed to delete post. Please try again.');
+    }
+  };
+
+  // Comment like handlers
+  const handleLikeComment = async (commentId: string) => {
+    try {
+      console.log('[Demo] handleLikeComment called with:', commentId);
+      console.log('[Demo] Storage backend:', storageBackend);
+      console.log('[Demo] Posts available:', posts.length);
+      
+      // Find which post contains this comment and update the comment
+      for (const post of posts) {
+        const storagePrefix = `${storageBackend}_course_framework_community`;
+        const commentsKey = `${storagePrefix}_post_comments_${post.id}`;
+        
+        // Load comments from storage
+        let comments: any[] = [];
+        if (storageBackend === 'localStorage') {
+          const commentsData = localStorage.getItem(commentsKey);
+          comments = commentsData ? JSON.parse(commentsData) : [];
+        } else if (storageBackend === 'indexedDB') {
+          const request = indexedDB.open('plugin_data', 3);
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          });
+          
+          const transaction = db.transaction(['demo-posts'], 'readwrite');
+          const commentsStore = transaction.objectStore('demo-posts');
+          
+          const commentsRequest = commentsStore.get(commentsKey);
+          const commentsData = await new Promise<any>((resolve, reject) => {
+            commentsRequest.onsuccess = () => resolve(commentsRequest.result);
+            commentsRequest.onerror = () => reject(commentsRequest.error);
+          });
+          
+          comments = commentsData?.value || [];
+          db.close();
+        }
+        
+        // Find and update the comment
+        const commentIndex = comments.findIndex((c: any) => c.id === commentId);
+        if (commentIndex !== -1) {
+          comments[commentIndex] = {
+            ...comments[commentIndex],
+            likes: (comments[commentIndex].likes || 0) + 1,
+            likedByUser: true
+          };
+          
+          // Save back to storage
+          if (storageBackend === 'localStorage') {
+            localStorage.setItem(commentsKey, JSON.stringify(comments));
+          } else if (storageBackend === 'indexedDB') {
+            const request = indexedDB.open('plugin_data', 3);
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+            
+            const transaction = db.transaction(['demo-posts'], 'readwrite');
+            const commentsStore = transaction.objectStore('demo-posts');
+            
+            await new Promise((resolve, reject) => {
+              const putRequest = commentsStore.put({ key: commentsKey, value: comments });
+              putRequest.onsuccess = () => resolve(putRequest.result);
+              putRequest.onerror = () => reject(putRequest.error);
+            });
+            
+            db.close();
+          }
+          
+          showInfo('Comment Liked!', 'Thanks for engaging with the discussion.');
+          return;
+        }
+      }
+      
+      console.warn('Comment not found:', commentId);
+    } catch (error) {
+      console.error('Error liking comment:', error);
+    }
+  };
+
+  const handleUnlikeComment = async (commentId: string) => {
+    try {
+      console.log('Unliking comment:', commentId);
+      
+      // Find which post contains this comment and update the comment
+      for (const post of posts) {
+        const storagePrefix = `${storageBackend}_course_framework_community`;
+        const commentsKey = `${storagePrefix}_post_comments_${post.id}`;
+        
+        // Load comments from storage
+        let comments: any[] = [];
+        if (storageBackend === 'localStorage') {
+          const commentsData = localStorage.getItem(commentsKey);
+          comments = commentsData ? JSON.parse(commentsData) : [];
+        } else if (storageBackend === 'indexedDB') {
+          const request = indexedDB.open('plugin_data', 3);
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          });
+          
+          const transaction = db.transaction(['demo-posts'], 'readwrite');
+          const commentsStore = transaction.objectStore('demo-posts');
+          
+          const commentsRequest = commentsStore.get(commentsKey);
+          const commentsData = await new Promise<any>((resolve, reject) => {
+            commentsRequest.onsuccess = () => resolve(commentsRequest.result);
+            commentsRequest.onerror = () => reject(commentsRequest.error);
+          });
+          
+          comments = commentsData?.value || [];
+          db.close();
+        }
+        
+        // Find and update the comment
+        const commentIndex = comments.findIndex((c: any) => c.id === commentId);
+        if (commentIndex !== -1) {
+          comments[commentIndex] = {
+            ...comments[commentIndex],
+            likes: Math.max(0, (comments[commentIndex].likes || 1) - 1),
+            likedByUser: false
+          };
+          
+          // Save back to storage
+          if (storageBackend === 'localStorage') {
+            localStorage.setItem(commentsKey, JSON.stringify(comments));
+          } else if (storageBackend === 'indexedDB') {
+            const request = indexedDB.open('plugin_data', 3);
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+            
+            const transaction = db.transaction(['demo-posts'], 'readwrite');
+            const commentsStore = transaction.objectStore('demo-posts');
+            
+            await new Promise((resolve, reject) => {
+              const putRequest = commentsStore.put({ key: commentsKey, value: comments });
+              putRequest.onsuccess = () => resolve(putRequest.result);
+              putRequest.onerror = () => reject(putRequest.error);
+            });
+            
+            db.close();
+          }
+          
+          showInfo('Comment Unliked!', 'Like removed from comment.');
+          return;
+        }
+      }
+      
+      console.warn('Comment not found:', commentId);
+    } catch (error) {
+      console.error('Error unliking comment:', error);
+    }
+  };
+
+  // Comment edit and delete handlers
+  const handleEditComment = async (commentId: string, newContent: string) => {
+    try {
+      // Find which post contains this comment and update it
+      for (const post of posts) {
+        const storagePrefix = `${storageBackend}_course_framework_community`;
+        const commentsKey = `${storagePrefix}_post_comments_${post.id}`;
+        
+        // Load comments from storage
+        let comments: any[] = [];
+        if (storageBackend === 'localStorage') {
+          const commentsData = localStorage.getItem(commentsKey);
+          comments = commentsData ? JSON.parse(commentsData) : [];
+        } else if (storageBackend === 'indexedDB') {
+          const request = indexedDB.open('plugin_data', 3);
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          });
+          
+          const transaction = db.transaction(['demo-posts'], 'readwrite');
+          const commentsStore = transaction.objectStore('demo-posts');
+          
+          const commentsRequest = commentsStore.get(commentsKey);
+          const commentsData = await new Promise<any>((resolve, reject) => {
+            commentsRequest.onsuccess = () => resolve(commentsRequest.result);
+            commentsRequest.onerror = () => reject(commentsRequest.error);
+          });
+          
+          comments = commentsData?.value || [];
+          db.close();
+        }
+        
+        // Find the comment to edit
+        const commentIndex = comments.findIndex((c: any) => c.id === commentId);
+        if (commentIndex !== -1) {
+          const comment = comments[commentIndex];
+          
+          // Check if current user is the author
+          if (comment.authorId !== (mockUser?.id || 'anonymous')) {
+            showWarning('Edit Failed', 'You can only edit your own comments.');
+            return;
+          }
+
+          // Update the comment
+          comments[commentIndex] = {
+            ...comment,
+            content: newContent,
+            isEdited: true,
+            updatedAt: new Date().toISOString()
+          };
+          
+          // Save back to storage
+          if (storageBackend === 'localStorage') {
+            localStorage.setItem(commentsKey, JSON.stringify(comments));
+          } else if (storageBackend === 'indexedDB') {
+            const request = indexedDB.open('plugin_data', 3);
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+            
+            const transaction = db.transaction(['demo-posts'], 'readwrite');
+            const commentsStore = transaction.objectStore('demo-posts');
+            
+            await new Promise((resolve, reject) => {
+              const putRequest = commentsStore.put({ key: commentsKey, value: comments });
+              putRequest.onsuccess = () => resolve(putRequest.result);
+              putRequest.onerror = () => reject(putRequest.error);
+            });
+            
+            db.close();
+          }
+          
+          showInfo('Comment Updated!', 'Your changes have been saved.');
+          return;
+        }
+      }
+      
+      console.warn('Comment not found for editing:', commentId);
+      showWarning('Edit Failed', 'Comment not found.');
+    } catch (error) {
+      console.error('Error editing comment:', error);
+      showWarning('Edit Failed', 'Failed to update comment. Please try again.');
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      // Find which post contains this comment and remove it
+      for (const post of posts) {
+        const storagePrefix = `${storageBackend}_course_framework_community`;
+        const commentsKey = `${storagePrefix}_post_comments_${post.id}`;
+        
+        // Load comments from storage
+        let comments: any[] = [];
+        if (storageBackend === 'localStorage') {
+          const commentsData = localStorage.getItem(commentsKey);
+          comments = commentsData ? JSON.parse(commentsData) : [];
+        } else if (storageBackend === 'indexedDB') {
+          const request = indexedDB.open('plugin_data', 3);
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          });
+          
+          const transaction = db.transaction(['demo-posts'], 'readwrite');
+          const commentsStore = transaction.objectStore('demo-posts');
+          
+          const commentsRequest = commentsStore.get(commentsKey);
+          const commentsData = await new Promise<any>((resolve, reject) => {
+            commentsRequest.onsuccess = () => resolve(commentsRequest.result);
+            commentsRequest.onerror = () => reject(commentsRequest.error);
+          });
+          
+          comments = commentsData?.value || [];
+          db.close();
+        }
+        
+        // Find the comment to delete
+        const commentIndex = comments.findIndex((c: any) => c.id === commentId);
+        if (commentIndex !== -1) {
+          const comment = comments[commentIndex];
+          
+          // Check if current user is the author
+          if (comment.authorId !== (mockUser?.id || 'anonymous')) {
+            showWarning('Delete Failed', 'You can only delete your own comments.');
+            return;
+          }
+
+          // Remove the comment and all its replies
+          const removeCommentAndReplies = (comments: any[], targetId: string) => {
+            // First, recursively remove all replies to this comment
+            const repliesToRemove = comments.filter((c: any) => c.parentId === targetId);
+            repliesToRemove.forEach((reply: any) => {
+              removeCommentAndReplies(comments, reply.id);
+            });
+            
+            // Then remove the comment itself
+            const index = comments.findIndex((c: any) => c.id === targetId);
+            if (index !== -1) {
+              comments.splice(index, 1);
+            }
+          };
+
+          removeCommentAndReplies(comments, commentId);
+          
+          // Update post comment count
+          const updatedPosts = posts.map((p: any) => 
+            p.id === post.id 
+              ? { ...p, comments: Math.max(0, (p.comments || 0) - 1) }
+              : p
+          );
+          setPosts(updatedPosts);
+          await savePostsToStorage(updatedPosts);
+          
+          // Save updated comments back to storage
+          if (storageBackend === 'localStorage') {
+            localStorage.setItem(commentsKey, JSON.stringify(comments));
+          } else if (storageBackend === 'indexedDB') {
+            const request = indexedDB.open('plugin_data', 3);
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+            
+            const transaction = db.transaction(['demo-posts'], 'readwrite');
+            const commentsStore = transaction.objectStore('demo-posts');
+            
+            await new Promise((resolve, reject) => {
+              const putRequest = commentsStore.put({ key: commentsKey, value: comments });
+              putRequest.onsuccess = () => resolve(putRequest.result);
+              putRequest.onerror = () => reject(putRequest.error);
+            });
+            
+            db.close();
+          }
+          
+          showWarning('Comment Deleted', 'Your comment has been removed.');
+          return;
+        }
+      }
+      
+      console.warn('Comment not found for deletion:', commentId);
+      showWarning('Delete Failed', 'Comment not found.');
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      showWarning('Delete Failed', 'Failed to delete comment. Please try again.');
+    }
   };
 
   // Certificate callback handlers
@@ -3644,7 +4107,7 @@ const DemoContent: React.FC = () => {
       id: `event-${Date.now()}-${Math.random()}`,
       name,
       properties: properties || {},
-      userId: userId || currentUser.id,
+      userId: userId || mockUser.id,
       timestamp: new Date(),
       provider: 'all',
       sent: true
@@ -3663,7 +4126,7 @@ const DemoContent: React.FC = () => {
       id: `pageview-${Date.now()}-${Math.random()}`,
       name: 'page_view',
       properties: { path, title: title || path },
-      userId: currentUser.id,
+      userId: mockUser.id,
       timestamp: new Date(),
       provider: 'all',
       sent: true
@@ -4969,7 +5432,7 @@ const DemoContent: React.FC = () => {
               onLikePost: handleLikePost,
               onUnlikePost: async (postId: string) => {
                 // Toggle unlike (reverse of like logic)
-                const post = posts.find(p => p.id === postId);
+                const post = posts.find((p: any) => p.id === postId);
                 if (post && userLikes.has(postId)) {
                   const newUserLikes = new Set(userLikes);
                   newUserLikes.delete(postId);
@@ -4979,17 +5442,18 @@ const DemoContent: React.FC = () => {
                   setPosts(updatedPosts);
                   setUserLikes(newUserLikes);
                   await savePostsToStorage(updatedPosts);
-                  await saveUserLikes(newUserLikes);
+                  await saveUserLikes(newUserLikes as Set<string>);
+                  showInfo('Post Unliked!', 'Like removed from post.');
                 }
               },
-              onDeletePost: async (postId: string) => {
-                const updatedPosts = posts.filter((p: any) => p.id !== postId);
-                setPosts(updatedPosts);
-                await savePostsToStorage(updatedPosts);
-                showSuccess('Post Deleted!', 'The post has been removed.');
-              },
+              onEditPost: handleEditPost,
+              onDeletePost: handleDeletePost,
               onAddComment: handleAddComment,
               onLoadComments: handleLoadComments,
+              onLikeComment: handleLikeComment,
+              onUnlikeComment: handleUnlikeComment,
+              onEditComment: handleEditComment,
+              onDeleteComment: handleDeleteComment,
               onLoadMore: async () => {
                 // Simulated load more functionality
                 console.log('Load more posts...');
@@ -5038,13 +5502,14 @@ const DemoContent: React.FC = () => {
                   await saveUserLikes(newUserLikes);
                 }
               },
-              onDeletePost: async (postId: string) => {
-                const updatedPosts = posts.filter((p: any) => p.id !== postId);
-                setPosts(updatedPosts);
-                await savePostsToStorage(updatedPosts);
-                showSuccess('Post Deleted!', 'The post has been removed.');
-              },
+              onEditPost: handleEditPost,
+              onDeletePost: handleDeletePost,
               onAddComment: handleAddComment,
+              onLoadComments: handleLoadComments,
+              onLikeComment: handleLikeComment,
+              onUnlikeComment: handleUnlikeComment,
+              onEditComment: handleEditComment,
+              onDeleteComment: handleDeleteComment,
               onLoadMore: async () => {
                 // Simulated load more functionality
                 console.log('Load more posts...');

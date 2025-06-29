@@ -1,6 +1,7 @@
 // Export course-builder as a plugin for the new registry system
 import * as React from 'react';
 import type { Plugin } from '../../types/plugin-interface';
+import { pluginRegistry } from '../../store/plugin-registry';
 import { createCourseBuilderPlugin } from './simple-plugin';
 
 // Initialize the actual course builder plugin when this is loaded
@@ -67,6 +68,24 @@ export const courseBuilderPlugin: Plugin = {
   onInstall: async () => {
     console.log('📦 Course Builder onInstall called');
     await ensureCourseBuilderInitialized();
+    
+    // Register components with service registry
+    const components = (window as any).__courseFrameworkComponents;
+    if (components) {
+      pluginRegistry.registerService('course-builder', {
+        version: '1.0.0',
+        components: {
+          CreateCourseForm: components.CreateCourseForm,
+          CourseEditor: components.CourseEditor,
+          CourseViewer: components.CourseViewer,
+          // Add other components as needed
+        }
+      });
+      console.log('✅ Course Builder components registered with service registry');
+    } else {
+      console.warn('⚠️ Course Builder components not available for service registry');
+    }
+    
     console.log('✅ Course Builder initialized in onInstall');
   },
 };

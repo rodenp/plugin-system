@@ -1,4 +1,5 @@
 import type { Plugin } from '../../types/plugin-interface';
+import { pluginRegistry } from '../../store/plugin-registry';
 import { CommunitySidebar } from './components/CommunitySidebar';
 import { CommunitySidebarDemo } from './CommunitySidebarDemo';
 
@@ -10,17 +11,16 @@ export const communitySidebarPlugin: Plugin = {
   icon: '📊',
   order: 2,
   onInstall: async () => {
-    // Expose components globally for dependent plugins
-    (window as any).__communitySidebarComponents = {
-      CommunitySidebar: CommunitySidebar,
-    };
-    console.log('🔌 Community Sidebar plugin initialized');
-    console.log('🔌 Exposed CommunitySidebar component:', CommunitySidebar);
-    console.log('🔌 Global components now:', (window as any).__communitySidebarComponents);
+    // Register components with service registry
+    pluginRegistry.registerService('community-sidebar', {
+      version: '1.0.0',
+      components: {
+        CommunitySidebar,
+      }
+    });
+    console.log('🔌 Community Sidebar plugin initialized with service registry');
   },
   onUninstall: async () => {
-    // Clean up global components
-    delete (window as any).__communitySidebarComponents;
     console.log('🔌 Community Sidebar plugin destroyed');
   }
 };

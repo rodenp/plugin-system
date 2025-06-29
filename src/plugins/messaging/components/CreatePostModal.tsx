@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { UnifiedToolbar } from './UnifiedToolbar'
 import { RichTextArea } from './RichTextArea'
+import { UnifiedCarousel } from './UnifiedCarousel'
 
 interface CreatePostModalProps {
   isOpen: boolean
@@ -8,6 +9,19 @@ interface CreatePostModalProps {
   theme: any
   onClose: () => void
   onCreatePost: (title: string, content: string, category: string, mediaData?: any) => void
+  // Edit mode props
+  editMode?: boolean
+  editPost?: {
+    id: string
+    title?: string
+    content: string
+    category: string
+    videoUrl?: string
+    linkUrl?: string
+    pollData?: any
+    attachments?: any[]
+  }
+  onEditPost?: (postId: string, updates: { title?: string; content: string; category?: string; mediaData?: any }) => void
 }
 
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({
@@ -15,7 +29,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   currentUser,
   theme,
   onClose,
-  onCreatePost
+  onCreatePost,
+  editMode = false,
+  editPost,
+  onEditPost
 }) => {
   const [title, setTitle] = React.useState('')
   const [content, setContent] = React.useState('')
@@ -27,19 +44,50 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [attachments, setAttachments] = React.useState<Array<{id: string, file: File, preview: string}>>([])
   const contentTextareaRef = React.useRef<HTMLDivElement>(null)
 
-  // Clear form when modal opens
+  // Initialize form when modal opens
   React.useEffect(() => {
     if (isOpen) {
-      setTitle('')
-      setContent('')
-      setCategory('discussion')
-      setMediaType('none')
-      setVideoUrl('')
-      setLinkUrl('')
-      setPollOptions(['', ''])
-      setAttachments([])
+      if (editMode && editPost) {
+        // Populate form with existing post data
+        setTitle(editPost.title || '')
+        setContent(editPost.content || '')
+        setCategory(editPost.category || 'discussion')
+        setVideoUrl(editPost.videoUrl || '')
+        setLinkUrl(editPost.linkUrl || '')
+        
+        // Determine media type from existing data
+        if (editPost.videoUrl) {
+          setMediaType('video')
+        } else if (editPost.linkUrl) {
+          setMediaType('link')
+        } else if (editPost.pollData) {
+          setMediaType('poll')
+          setPollOptions(editPost.pollData.options || ['', ''])
+        } else if (editPost.attachments && editPost.attachments.length > 0) {
+          setMediaType('file')
+          // Convert existing attachments to the format expected by the component
+          // We can't reconstruct File objects, but we can preserve the attachment data
+          setAttachments(editPost.attachments.map((att: any) => ({
+            id: att.id,
+            file: new File([], att.name || 'file', { type: att.type || 'application/octet-stream' }),
+            preview: att.preview || ''
+          })))
+        } else {
+          setMediaType('none')
+        }
+      } else {
+        // Clear form for new post
+        setTitle('')
+        setContent('')
+        setCategory('discussion')
+        setMediaType('none')
+        setVideoUrl('')
+        setLinkUrl('')
+        setPollOptions(['', ''])
+        setAttachments([])
+      }
     }
-  }, [isOpen])
+  }, [isOpen, editMode, editPost])
 
   // Utility function to check storage size
   const getStorageSize = () => {
@@ -75,12 +123,37 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     if (!content.trim()) return
 
     let mediaData: any = null
-    if (mediaType === 'video' && videoUrl.trim()) {
-      mediaData = { type: 'video', url: videoUrl.trim() }
-    } else if (mediaType === 'poll') {
-      const validOptions = pollOptions.filter(opt => opt.trim())
-      if (validOptions.length >= 2) {
-        mediaData = { type: 'poll', options: validOptions }
+    
+    // When editing, preserve existing media unless explicitly changed
+    if (editMode && editPost) {
+      // Check if media type has changed or if we should clear media
+      if (mediaType === 'none') {
+        // User explicitly selected 'none' - clear all media
+        mediaData = { type: 'none' }
+      } else if (mediaType === 'video' && videoUrl.trim()) {
+        mediaData = { type: 'video', url: videoUrl.trim() }
+      } else if (mediaType === 'link' && linkUrl.trim()) {
+        mediaData = { type: 'link', url: linkUrl.trim() }
+      } else if (mediaType === 'poll') {
+        const validOptions = pollOptions.filter(opt => opt.trim())
+        if (validOptions.length >= 2) {
+          mediaData = { type: 'poll', options: validOptions }
+        }
+      } else if (mediaType === 'file') {
+        // For file type, use attachments
+        mediaData = { type: 'file' }
+      }
+    } else {
+      // Creating new post - use the normal logic
+      if (mediaType === 'video' && videoUrl.trim()) {
+        mediaData = { type: 'video', url: videoUrl.trim() }
+      } else if (mediaType === 'link' && linkUrl.trim()) {
+        mediaData = { type: 'link', url: linkUrl.trim() }
+      } else if (mediaType === 'poll') {
+        const validOptions = pollOptions.filter(opt => opt.trim())
+        if (validOptions.length >= 2) {
+          mediaData = { type: 'poll', options: validOptions }
+        }
       }
     }
 
@@ -98,7 +171,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       }
     }
 
-    onCreatePost(title, content, category, mediaData)
+    if (editMode && editPost && onEditPost) {
+      // Edit existing post
+      onEditPost(editPost.id, {
+        title,
+        content,
+        category,
+        mediaData
+      })
+    } else {
+      // Create new post
+      onCreatePost(title, content, category, mediaData)
+    }
     
     // Reset form
     setTitle('')
@@ -251,7 +335,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             fontWeight: 600,
             color: theme.colors.textPrimary
           }}>
-            Create Post
+{editMode ? 'Edit Post' : 'Create Post'}
           </h2>
           <button
             onClick={onClose}
@@ -363,6 +447,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             }}
           />
 
+          {/* Show existing media content when editing */}
+          {editMode && editPost && (
+            ((editPost.attachments && editPost.attachments.length > 0) || editPost.videoUrl || editPost.pollData || editPost.linkUrl) && (
+              <div style={{ marginBottom: theme.spacing.md }}>
+                <UnifiedCarousel
+                  attachments={editPost.attachments}
+                  videoUrl={editPost.videoUrl}
+                  pollData={editPost.pollData}
+                  content={content}
+                  theme={theme}
+                  type="post-detail"
+                />
+              </div>
+            )
+          )}
+
           {/* UnifiedToolbar */}
           <UnifiedToolbar
             theme={theme}
@@ -429,7 +529,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 opacity: content.trim() ? 1 : 0.6
               }}
             >
-              Post
+{editMode ? 'Save Changes' : 'Post'}
             </button>
           </div>
         </div>

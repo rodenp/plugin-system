@@ -14,6 +14,13 @@ export interface SkoolPlugin {
   onInstall?: () => void; // Callback when plugin is installed
 }
 
+// Plugin service definition for cross-plugin component sharing
+export interface PluginServiceDefinition {
+  components: Record<string, React.ComponentType<any>>;
+  services?: Record<string, Function>;
+  version: string;
+}
+
 // Theme-enhanced plugin component wrapper
 interface ThemedPluginProps extends SkoolPluginProps {
   theme?: any;
@@ -22,6 +29,7 @@ interface ThemedPluginProps extends SkoolPluginProps {
 class PluginRegistry {
   private plugins = new Map<string, SkoolPlugin>();
   private installedPlugins = new Set<string>();
+  private services = new Map<string, PluginServiceDefinition>();
 
   register(plugin: SkoolPlugin): void {
     if (!plugin) {
@@ -193,6 +201,46 @@ class PluginRegistry {
     }
 
     return result;
+  }
+
+  // Service registry methods for cross-plugin component sharing
+  registerService(pluginId: string, definition: PluginServiceDefinition): void {
+    this.services.set(pluginId, definition);
+    console.log(`🔌 Plugin Registry: Registered services for ${pluginId}:`, {
+      components: Object.keys(definition.components),
+      services: Object.keys(definition.services || {}),
+      version: definition.version
+    });
+  }
+
+  getComponent(pluginId: string, componentName: string): React.ComponentType<any> | null {
+    const service = this.services.get(pluginId);
+    const component = service?.components[componentName];
+    
+    // Don't warn here - let the hook handle fallback and warnings
+    return component || null;
+  }
+
+  getService(pluginId: string, serviceName: string): Function | null {
+    const service = this.services.get(pluginId);
+    const serviceFunc = service?.services?.[serviceName];
+    
+    if (!serviceFunc) {
+      console.warn(`⚠️ Service ${pluginId}.${serviceName} not found. Available:`, 
+        service?.services ? Object.keys(service.services) : 'No services or plugin not registered');
+    }
+    
+    return serviceFunc || null;
+  }
+
+  hasComponent(pluginId: string, componentName: string): boolean {
+    const service = this.services.get(pluginId);
+    return !!(service?.components[componentName]);
+  }
+
+  hasService(pluginId: string, serviceName: string): boolean {
+    const service = this.services.get(pluginId);
+    return !!(service?.services?.[serviceName]);
   }
 }
 

@@ -6,6 +6,7 @@ import { CreatePostModal } from './components/CreatePostModal'
 import { PostDetailModal } from './components/PostDetailModal'
 import { UnifiedCarousel } from './components/UnifiedCarousel'
 import { ContentRenderer } from './components/ContentRenderer'
+import { PostDropdownMenu } from './components/PostDropdownMenu'
 import type { CommunityPost } from './types'
 
 interface Post {
@@ -37,8 +38,10 @@ const PostCard: React.FC<{
   onToggleSelect: (postId: string) => void
   onLikePost: (postId: string) => void
   onEditPost?: (postId: string) => void
-}> = ({ post, selectedPost, theme, currentUser, onToggleSelect, onLikePost, onEditPost }) => (
+  onDeletePost?: (postId: string) => void
+}> = ({ post, selectedPost, theme, currentUser, onToggleSelect, onLikePost, onEditPost, onDeletePost }) => (
   <div
+    className="post-card"
     style={{
       backgroundColor: theme.colors.surface,
       borderRadius: theme.borders.borderRadius,
@@ -92,25 +95,46 @@ const PostCard: React.FC<{
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm }}>
-        {currentUser?.id === post.authorId && (
-          <button 
-            onClick={(e) => {
-              e.stopPropagation()
-              if (onEditPost) onEditPost(post.id)
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: theme.colors.textSecondary,
-              fontSize: theme.font.sizeSm,
-              cursor: 'pointer',
-              padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-              borderRadius: theme.borders.borderRadius
-            }}>
-            Edit
-          </button>
-        )}
         {post.isPinned && <div style={{ color: theme.colors.highlight, fontWeight: 600 }}>📌 Pinned</div>}
+        <PostDropdownMenu
+          postId={post.id}
+          authorId={post.authorId}
+          currentUserId={currentUser?.id || ''}
+          isPinned={post.isPinned}
+          theme={theme}
+          onEdit={currentUser?.id === post.authorId && onEditPost ? () => onEditPost(post.id) : undefined}
+          onDelete={currentUser?.id === post.authorId && onDeletePost ? () => {
+            if (confirm('Are you sure you want to delete this post?')) {
+              onDeletePost(post.id)
+            }
+          } : undefined}
+          onCopyLink={() => {
+            // Copy post link to clipboard
+            const postUrl = `${window.location.origin}/post/${post.id}`;
+            navigator.clipboard.writeText(postUrl);
+            alert('Post link copied to clipboard!');
+          }}
+          onChangeCategory={() => {
+            // TODO: Implement category change
+            alert('Change category feature coming soon!');
+          }}
+          onPinToFeed={() => {
+            // TODO: Implement pin/unpin
+            alert('Pin to feed feature coming soon!');
+          }}
+          onPinToCoursePage={() => {
+            // TODO: Implement pin to course
+            alert('Pin to course page feature coming soon!');
+          }}
+          onToggleComments={() => {
+            // TODO: Implement toggle comments
+            alert('Toggle comments feature coming soon!');
+          }}
+          onReport={() => {
+            // TODO: Implement report
+            alert('Report feature coming soon!');
+          }}
+        />
       </div>
     </div>
 
@@ -276,9 +300,14 @@ export const MessagingDemo: React.FC<PluginProps & {
   onCreatePost: (post: any) => Promise<void>
   onLikePost: (postId: string) => Promise<void>
   onUnlikePost: (postId: string) => Promise<void>
+  onEditPost?: (postId: string, updates: { title?: string; content: string; category?: string; mediaData?: any }) => Promise<void>
   onDeletePost: (postId: string) => Promise<void>
   onAddComment: (postId: string, content: string, parentId?: string, mediaData?: any) => Promise<void>
   onLoadComments?: (postId: string) => Promise<any[]>
+  onLikeComment?: (commentId: string) => Promise<void>
+  onUnlikeComment?: (commentId: string) => Promise<void>
+  onEditComment?: (commentId: string, newContent: string) => Promise<void>
+  onDeleteComment?: (commentId: string) => Promise<void>
   onLoadMore?: () => Promise<void>
   onRefresh?: () => Promise<void>
 }> = ({
@@ -293,9 +322,14 @@ export const MessagingDemo: React.FC<PluginProps & {
   onCreatePost,
   onLikePost,
   onUnlikePost,
+  onEditPost,
   onDeletePost,
   onAddComment,
   onLoadComments,
+  onLikeComment,
+  onUnlikeComment,
+  onEditComment,
+  onDeleteComment,
   onLoadMore,
   onRefresh,
   theme
@@ -309,6 +343,8 @@ export const MessagingDemo: React.FC<PluginProps & {
   const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [modalPost, setModalPost] = React.useState<CommunityPost | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
+  const [editingPost, setEditingPost] = React.useState<any>(null)
   const [loadingComments, setLoadingComments] = React.useState(false)
 
   // Use posts directly from props
@@ -338,6 +374,16 @@ export const MessagingDemo: React.FC<PluginProps & {
 
   const handleCloseCreateModal = React.useCallback(() => {
     setIsCreateModalOpen(false)
+  }, [])
+
+  const handleOpenEditModal = React.useCallback((post: any) => {
+    setEditingPost(post)
+    setIsEditModalOpen(true)
+  }, [])
+
+  const handleCloseEditModal = React.useCallback(() => {
+    setIsEditModalOpen(false)
+    setEditingPost(null)
   }, [])
 
   // Create post handler - delegate to parent
@@ -372,6 +418,18 @@ export const MessagingDemo: React.FC<PluginProps & {
       alert('Error creating post. Please try again.')
     }
   }, [currentUser, onCreatePost, handleCloseCreateModal])
+
+  const handleEditPost = React.useCallback(async (postId: string, updates: { title?: string; content: string; category?: string; mediaData?: any }) => {
+    try {
+      if (onEditPost) {
+        await onEditPost(postId, updates)
+        handleCloseEditModal()
+      }
+    } catch (error) {
+      console.error('[Messaging] Error editing post:', error)
+      alert('Error editing post. Please try again.')
+    }
+  }, [onEditPost, handleCloseEditModal])
 
   const handleLikePost = React.useCallback(async (postId: string) => {
     try {
@@ -423,10 +481,11 @@ export const MessagingDemo: React.FC<PluginProps & {
         setModalPost(postWithComments)
         setIsModalOpen(true)
         setSelectedPost(postId)
-        setLoadingComments(false)
       }
     } catch (error) {
       console.error('[Messaging] Error opening post modal:', error)
+    } finally {
+      // Always clear loading state
       setLoadingComments(false)
     }
   }, [allPosts, currentUser, onLoadComments])
@@ -493,17 +552,113 @@ export const MessagingDemo: React.FC<PluginProps & {
 
   const handleModalLikeComment = React.useCallback(async (commentId: string) => {
     try {
-      // This would need a parent handler for comment likes
-      console.log('[Messaging] Like comment:', commentId)
+      console.log('[Messaging] handleModalLikeComment called with:', commentId);
+      console.log('[Messaging] onLikeComment available:', !!onLikeComment);
+      
+      if (onLikeComment) {
+        console.log('[Messaging] Calling onLikeComment...');
+        await onLikeComment(commentId)
+        console.log('[Messaging] onLikeComment completed');
+        
+        // Reload comments to show updated like count
+        if (modalPost && onLoadComments) {
+          console.log('[Messaging] Reloading comments for post:', modalPost.id);
+          const updatedComments = await onLoadComments(modalPost.id)
+          console.log('[Messaging] Updated comments loaded:', updatedComments.length);
+          setModalPost(prev => prev ? {
+            ...prev,
+            comments: updatedComments
+          } as any : null)
+        }
+      } else {
+        console.log('[Messaging] Like comment (no handler):', commentId)
+      }
     } catch (error) {
       console.error('[Messaging] Error liking comment:', error)
     }
-  }, [])
+  }, [onLikeComment, modalPost, onLoadComments])
 
   const handleModalUnlikeComment = React.useCallback(async (commentId: string) => {
-    // Same as like since we toggle
-    return handleModalLikeComment(commentId)
-  }, [handleModalLikeComment])
+    try {
+      console.log('[Messaging] handleModalUnlikeComment called with:', commentId);
+      
+      if (onUnlikeComment) {
+        console.log('[Messaging] Calling onUnlikeComment...');
+        await onUnlikeComment(commentId)
+        console.log('[Messaging] onUnlikeComment completed');
+        
+        // Reload comments to show updated like count
+        if (modalPost && onLoadComments) {
+          console.log('[Messaging] Reloading comments for post:', modalPost.id);
+          const updatedComments = await onLoadComments(modalPost.id)
+          console.log('[Messaging] Updated comments loaded:', updatedComments.length);
+          setModalPost(prev => prev ? {
+            ...prev,
+            comments: updatedComments
+          } as any : null)
+        }
+      } else {
+        console.log('[Messaging] Unlike comment (no handler):', commentId)
+      }
+    } catch (error) {
+      console.error('[Messaging] Error unliking comment:', error)
+    }
+  }, [onUnlikeComment, modalPost, onLoadComments])
+
+  const handleModalEditComment = React.useCallback(async (commentId: string, newContent: string) => {
+    try {
+      console.log('[Messaging] handleModalEditComment called with:', commentId, newContent);
+      
+      if (onEditComment) {
+        console.log('[Messaging] Calling onEditComment...');
+        await onEditComment(commentId, newContent);
+        console.log('[Messaging] onEditComment completed');
+        
+        // Reload comments to show updated content
+        if (modalPost && onLoadComments) {
+          console.log('[Messaging] Reloading comments for post:', modalPost.id);
+          const updatedComments = await onLoadComments(modalPost.id);
+          console.log('[Messaging] Updated comments loaded:', updatedComments.length);
+          setModalPost(prev => prev ? {
+            ...prev,
+            comments: updatedComments
+          } as any : null);
+        }
+      } else {
+        console.log('[Messaging] Edit comment (no handler):', commentId);
+      }
+    } catch (error) {
+      console.error('[Messaging] Error editing comment:', error);
+    }
+  }, [onEditComment, modalPost, onLoadComments]);
+
+  const handleModalDeleteComment = React.useCallback(async (commentId: string) => {
+    try {
+      console.log('[Messaging] handleModalDeleteComment called with:', commentId);
+      
+      if (onDeleteComment) {
+        console.log('[Messaging] Calling onDeleteComment...');
+        await onDeleteComment(commentId);
+        console.log('[Messaging] onDeleteComment completed');
+        
+        // Reload comments to show updated list
+        if (modalPost && onLoadComments) {
+          console.log('[Messaging] Reloading comments for post:', modalPost.id);
+          const updatedComments = await onLoadComments(modalPost.id);
+          console.log('[Messaging] Updated comments loaded:', updatedComments.length);
+          setModalPost(prev => prev ? {
+            ...prev,
+            comments: updatedComments,
+            commentCount: Math.max(0, (prev.commentCount || 0) - 1)
+          } as any : null);
+        }
+      } else {
+        console.log('[Messaging] Delete comment (no handler):', commentId);
+      }
+    } catch (error) {
+      console.error('[Messaging] Error deleting comment:', error);
+    }
+  }, [onDeleteComment, modalPost, onLoadComments]);
 
   const handleFilterChange = React.useCallback((category: string) => {
     setFilterCategory(category)
@@ -514,6 +669,12 @@ export const MessagingDemo: React.FC<PluginProps & {
     <div style={{ 
       padding: appliedTheme.spacing.lg 
     }}>
+      <style>{`
+        .post-card:hover .post-menu-button {
+          opacity: 1 !important;
+          visibility: visible !important;
+        }
+      `}</style>
       {/* Write post section */}
       <div style={{ marginBottom: appliedTheme.spacing.lg }}>
         <WritePostSection
@@ -563,7 +724,13 @@ export const MessagingDemo: React.FC<PluginProps & {
             currentUser={currentUser}
             onToggleSelect={handleToggleSelect}
             onLikePost={handleLikePost}
-            onEditPost={(postId) => alert(`Edit post ${postId} - Edit functionality not implemented yet`)}
+            onEditPost={(postId) => {
+              const post = posts.find(p => p.id === postId);
+              if (post) {
+                handleOpenEditModal(post);
+              }
+            }}
+            onDeletePost={onDeletePost}
           />
         ))}
         {filteredPosts.length === 0 && (
@@ -618,6 +785,8 @@ export const MessagingDemo: React.FC<PluginProps & {
         onAddComment={handleModalAddComment}
         onLikeComment={handleModalLikeComment}
         onUnlikeComment={handleModalUnlikeComment}
+        onEditComment={handleModalEditComment}
+        onDeleteComment={handleModalDeleteComment}
         loadingComments={loadingComments}
       />
 
@@ -628,6 +797,18 @@ export const MessagingDemo: React.FC<PluginProps & {
         theme={appliedTheme}
         onClose={handleCloseCreateModal}
         onCreatePost={handleCreatePost}
+      />
+
+      {/* Edit Post Modal */}
+      <CreatePostModal
+        isOpen={isEditModalOpen}
+        editMode={true}
+        editPost={editingPost}
+        currentUser={currentUser}
+        theme={appliedTheme}
+        onClose={handleCloseEditModal}
+        onCreatePost={handleCreatePost}
+        onEditPost={handleEditPost}
       />
     </div>
   )

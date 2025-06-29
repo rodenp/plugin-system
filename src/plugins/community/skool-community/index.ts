@@ -24,8 +24,9 @@ export const communityPlugin: Plugin = {
   id: 'community',
   name: 'Community',
   component: CommunityPluginWrapper,
+  dependencies: ['messaging', 'community-sidebar'], // Declare dependencies
   icon: '',
-  order: 1,
+  order: 3, // Should load after its dependencies
 };
 
 export default communityPlugin;
