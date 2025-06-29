@@ -8,6 +8,8 @@ import { ToastProvider, useToast } from './components/ToastProvider';
 import { EventsModal } from './components/EventsModal';
 
 // Import new plugins 
+import { messagingPlugin } from './plugins/messaging';
+import { communitySidebarPlugin } from './plugins/community-sidebar';
 import { communityPlugin } from './plugins/community';
 import { classroomPlugin } from './plugins/classroom';
 import { courseBuilderPlugin } from './plugins/course-builder';
@@ -29,7 +31,7 @@ import { authPlugin } from './plugins/auth/new-plugin';
 import { coursePublishingPlugin } from './plugins/course-publishing/plugin';
 import './index.css';
 
-console.log('🔍 Imports loaded:', { communityPlugin, classroomPlugin, courseBuilderPlugin, aboutPlugin, membersPlugin, merchandisePlugin, calendarPlugin, leaderboardPlugin, communityMyProfilePlugin });
+console.log('🔍 Imports loaded:', { messagingPlugin, communitySidebarPlugin, communityPlugin, classroomPlugin, courseBuilderPlugin, aboutPlugin, membersPlugin, merchandisePlugin, calendarPlugin, leaderboardPlugin, communityMyProfilePlugin });
 
 // Inner component that uses toast
 const DemoContent: React.FC = () => {
@@ -41,15 +43,18 @@ const DemoContent: React.FC = () => {
   const [recentEvents, setRecentEvents] = React.useState<Array<{event: string, data: any, timestamp: Date, pluginId?: string}>>([]);
   const { showSuccess, showInfo, showWarning } = useToast();
   
-  // Sample posts for community plugin (existing mock data)
+  // Sample posts for community plugin (existing mock data) - with fixed dates in the past
   const samplePosts = [
     { 
       id: '1', 
       author: 'Sarah Johnson', 
+      authorId: 'user_sarah_johnson',
       time: '2h', 
+      createdAt: '2024-12-28T14:30:00.000Z', // December 28, 2024, 2:30 PM UTC
+      postDate: '2024-12-28T14:30:00.000Z',
       content: 'Just completed my first 10K run! ![GIF](https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif) The training program in this community has been amazing. Thank you everyone for the support! 🏃‍♀️', 
       likes: 24, 
-      comments: 8, 
+      comments: 8,
       isPinned: false,
       level: 6,
       commenters: [
@@ -58,32 +63,36 @@ const DemoContent: React.FC = () => {
         { initials: 'RS', avatarUrl: null },
         { initials: 'AH', avatarUrl: null },
         { initials: 'TB', avatarUrl: null }
-      ],
-      newCommentTimeAgo: '23m ago'
+      ]
     },
     { 
       id: '2', 
       author: 'Mike Chen', 
+      authorId: 'user_mike_chen',
       time: '4h', 
+      createdAt: '2024-12-28T12:15:00.000Z', // December 28, 2024, 12:15 PM UTC
+      postDate: '2024-12-28T12:15:00.000Z',
       content: 'New workout video is up! Today we\'re focusing on core strength and stability. Perfect for beginners and advanced athletes alike.', 
       likes: 18, 
-      comments: 12, 
+      comments: 12,
       isPinned: true,
       level: 3,
       commenters: [
         { initials: 'LS', avatarUrl: null },
         { initials: 'AK', avatarUrl: null },
         { initials: 'JD', avatarUrl: null }
-      ],
-      newCommentTimeAgo: '2h ago'
+      ]
     },
     { 
       id: '3', 
       author: 'Emily Davis', 
+      authorId: 'user_emily_davis',
       time: '6h', 
+      createdAt: '2024-12-28T09:45:00.000Z', // December 28, 2024, 9:45 AM UTC
+      postDate: '2024-12-28T09:45:00.000Z',
       content: 'Question for the group: What\'s your favorite pre-workout snack? Looking for some healthy options that give good energy.', 
       likes: 12, 
-      comments: 15, 
+      comments: 15,
       isPinned: false,
       level: 9,
       commenters: [
@@ -92,13 +101,15 @@ const DemoContent: React.FC = () => {
         { initials: 'SC', avatarUrl: null },
         { initials: 'LM', avatarUrl: null },
         { initials: 'HK', avatarUrl: null }
-      ],
-      newCommentTimeAgo: '15m ago'
+      ]
     },
     {
       id: '4',
       author: 'Alex Rodriguez',
-      time: '6h',
+      authorId: 'user_alex_rodriguez',
+      time: '8h',
+      createdAt: '2024-12-27T20:20:00.000Z', // December 27, 2024, 8:20 PM UTC
+      postDate: '2024-12-27T20:20:00.000Z',
       content: 'Amazing workout session today! ![GIF](https://media.giphy.com/media/26u4lOMA8JKSnL9Uk/giphy.gif) And here\'s another one! ![GIF](https://media.giphy.com/media/l4FGGafcOHmrlQxG0/giphy.gif) Feeling great! 💪',
       likes: 15,
       comments: 5,
@@ -108,8 +119,658 @@ const DemoContent: React.FC = () => {
         { initials: 'SJ', avatarUrl: null },
         { initials: 'MC', avatarUrl: null },
         { initials: 'ED', avatarUrl: null }
-      ],
-      newCommentTimeAgo: '2h ago'
+      ]
+    }
+  ];
+
+  // Sample comments for community posts - with fixed dates
+  const sampleComments = [
+    // Comments for Post 1 (Sarah's 10K run - 8 comments)
+    {
+      id: 'comment_1_0',
+      postId: '1',
+      authorId: 'commenter_mike_johnson',
+      authorName: 'Mike Johnson',
+      content: 'Congratulations Sarah! That\'s an amazing achievement! 🎉',
+      parentId: null,
+      likes: 3,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T15:15:00.000Z',
+      updatedAt: '2024-12-28T15:15:00.000Z'
+    },
+    {
+      id: 'comment_1_1',
+      postId: '1',
+      authorId: 'commenter_emma_clark',
+      authorName: 'Emma Clark',
+      content: 'Way to go! I remember when you first started the program. So proud of you!',
+      parentId: null,
+      likes: 5,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T16:00:00.000Z',
+      updatedAt: '2024-12-28T16:00:00.000Z'
+    },
+    {
+      id: 'comment_1_2',
+      postId: '1',
+      authorId: 'commenter_ryan_smith',
+      authorName: 'Ryan Smith',
+      content: 'Inspiring! I\'m just starting week 3 of the training. Any tips for staying motivated?',
+      parentId: null,
+      likes: 2,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T16:45:00.000Z',
+      updatedAt: '2024-12-28T16:45:00.000Z'
+    },
+    {
+      id: 'comment_1_3',
+      postId: '1',
+      authorId: 'commenter_tom_brown',
+      authorName: 'Tom Brown',
+      content: '@Ryan Smith The key is consistency! Even on tough days, just show up. Sarah is living proof it works! 💪',
+      parentId: 'comment_1_2',
+      likes: 4,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T17:30:00.000Z',
+      updatedAt: '2024-12-28T17:30:00.000Z'
+    },
+    {
+      id: 'comment_1_4',
+      postId: '1',
+      authorId: 'user_sarah_johnson',
+      authorName: 'Sarah Johnson',
+      content: '@Ryan Smith Thanks Ryan! Tom is absolutely right - consistency beats perfection every time. You\'ve got this! 🏃‍♂️',
+      parentId: 'comment_1_2',
+      likes: 6,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T18:15:00.000Z',
+      updatedAt: '2024-12-28T18:15:00.000Z'
+    },
+    {
+      id: 'comment_1_5',
+      postId: '1',
+      authorId: 'commenter_lisa_wong',
+      authorName: 'Lisa Wong',
+      content: 'This community is so supportive! Love seeing everyone\'s progress. 🙌',
+      parentId: null,
+      likes: 7,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T19:00:00.000Z',
+      updatedAt: '2024-12-28T19:00:00.000Z'
+    },
+    {
+      id: 'comment_1_6',
+      postId: '1',
+      authorId: 'commenter_alex_davis',
+      authorName: 'Alex Davis',
+      content: 'Next goal: half marathon? 😉',
+      parentId: null,
+      likes: 2,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T19:45:00.000Z',
+      updatedAt: '2024-12-28T19:45:00.000Z'
+    },
+    {
+      id: 'comment_1_7',
+      postId: '1',
+      authorId: 'user_sarah_johnson',
+      authorName: 'Sarah Johnson',
+      content: '@Alex Davis Actually thinking about it! Maybe in 6 months... 🤔',
+      parentId: 'comment_1_6',
+      likes: 3,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T20:30:00.000Z',
+      updatedAt: '2024-12-28T20:30:00.000Z'
+    },
+
+    // Comments for Post 2 (Mike's workout video - 12 comments)
+    {
+      id: 'comment_2_0',
+      postId: '2',
+      authorId: 'commenter_lisa_wong',
+      authorName: 'Lisa Wong',
+      content: 'Perfect timing! I was just looking for a core workout. Thanks Mike!',
+      parentId: null,
+      likes: 4,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T13:00:00.000Z',
+      updatedAt: '2024-12-28T13:00:00.000Z'
+    },
+    {
+      id: 'comment_2_1',
+      postId: '2',
+      authorId: 'commenter_david_kim',
+      authorName: 'David Kim',
+      content: 'Your form explanations are always so clear. Much appreciated! 👍',
+      parentId: null,
+      likes: 6,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T13:45:00.000Z',
+      updatedAt: '2024-12-28T13:45:00.000Z'
+    },
+    {
+      id: 'comment_2_2',
+      postId: '2',
+      authorId: 'commenter_emma_clark',
+      authorName: 'Emma Clark',
+      content: 'Question: How many times per week should beginners do this routine?',
+      parentId: null,
+      likes: 3,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T14:30:00.000Z',
+      updatedAt: '2024-12-28T14:30:00.000Z'
+    },
+    {
+      id: 'comment_2_3',
+      postId: '2',
+      authorId: 'user_mike_chen',
+      authorName: 'Mike Chen',
+      content: '@Emma Clark Great question! For beginners, I\'d recommend 2-3 times per week with rest days in between. Listen to your body!',
+      parentId: 'comment_2_2',
+      likes: 8,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T15:15:00.000Z',
+      updatedAt: '2024-12-28T15:15:00.000Z'
+    },
+    {
+      id: 'comment_2_4',
+      postId: '2',
+      authorId: 'commenter_ryan_smith',
+      authorName: 'Ryan Smith',
+      content: 'Just finished it. That plank hold at the end was brutal! 😅',
+      parentId: null,
+      likes: 5,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T16:00:00.000Z',
+      updatedAt: '2024-12-28T16:00:00.000Z'
+    },
+    {
+      id: 'comment_2_5',
+      postId: '2',
+      authorId: 'commenter_anna_foster',
+      authorName: 'Anna Foster',
+      content: 'Been doing your videos for 3 months now. Seeing real results! Thank you!',
+      parentId: null,
+      likes: 7,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T16:45:00.000Z',
+      updatedAt: '2024-12-28T16:45:00.000Z'
+    },
+    {
+      id: 'comment_2_6',
+      postId: '2',
+      authorId: 'commenter_tom_brown',
+      authorName: 'Tom Brown',
+      content: 'Core strength has improved so much since following your programs. Keep it up!',
+      parentId: null,
+      likes: 4,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T17:30:00.000Z',
+      updatedAt: '2024-12-28T17:30:00.000Z'
+    },
+    {
+      id: 'comment_2_7',
+      postId: '2',
+      authorId: 'commenter_james_wilson',
+      authorName: 'James Wilson',
+      content: 'Any modifications for people with lower back issues?',
+      parentId: null,
+      likes: 2,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T18:15:00.000Z',
+      updatedAt: '2024-12-28T18:15:00.000Z'
+    },
+    {
+      id: 'comment_2_8',
+      postId: '2',
+      authorId: 'user_mike_chen',
+      authorName: 'Mike Chen',
+      content: '@James Wilson Absolutely! Try the modified planks on your knees, and skip any exercises that cause discomfort. I\'ll make a video specifically for back-friendly core work soon!',
+      parentId: 'comment_2_7',
+      likes: 9,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T19:00:00.000Z',
+      updatedAt: '2024-12-28T19:00:00.000Z'
+    },
+    {
+      id: 'comment_2_9',
+      postId: '2',
+      authorId: 'user_sarah_johnson',
+      authorName: 'Sarah Johnson',
+      content: 'Love how you always include modifications. So inclusive! 🙏',
+      parentId: null,
+      likes: 6,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T19:45:00.000Z',
+      updatedAt: '2024-12-28T19:45:00.000Z'
+    },
+    {
+      id: 'comment_2_10',
+      postId: '2',
+      authorId: 'commenter_alex_davis',
+      authorName: 'Alex Davis',
+      content: 'The progression from last month\'s video is perfect. Feeling stronger already!',
+      parentId: null,
+      likes: 5,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T20:30:00.000Z',
+      updatedAt: '2024-12-28T20:30:00.000Z'
+    },
+    {
+      id: 'comment_2_11',
+      postId: '2',
+      authorId: 'commenter_emma_clark',
+      authorName: 'Emma Clark',
+      content: '@Mike Chen That would be amazing! Looking forward to the back-friendly version. 🙌',
+      parentId: 'comment_2_8',
+      likes: 3,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T21:15:00.000Z',
+      updatedAt: '2024-12-28T21:15:00.000Z'
+    },
+
+    // Comments for Post 3 (Emily's pre-workout snack - 15 comments)
+    {
+      id: 'comment_3_0',
+      postId: '3',
+      authorId: 'user_sarah_johnson',
+      authorName: 'Sarah Johnson',
+      content: 'Banana with almond butter is my go-to! Quick energy and protein.',
+      parentId: null,
+      likes: 8,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T10:30:00.000Z',
+      updatedAt: '2024-12-28T10:30:00.000Z'
+    },
+    {
+      id: 'comment_3_1',
+      postId: '3',
+      authorId: 'user_mike_chen',
+      authorName: 'Mike Chen',
+      content: 'Greek yogurt with berries for me. The protein helps with recovery too.',
+      parentId: null,
+      likes: 6,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T11:15:00.000Z',
+      updatedAt: '2024-12-28T11:15:00.000Z'
+    },
+    {
+      id: 'comment_3_2',
+      postId: '3',
+      authorId: 'commenter_lisa_wong',
+      authorName: 'Lisa Wong',
+      content: 'Oatmeal with a drizzle of honey about 30 minutes before. Works great!',
+      parentId: null,
+      likes: 4,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T12:00:00.000Z',
+      updatedAt: '2024-12-28T12:00:00.000Z'
+    },
+    {
+      id: 'comment_3_3',
+      postId: '3',
+      authorId: 'commenter_ryan_smith',
+      authorName: 'Ryan Smith',
+      content: '@Sarah Johnson How much almond butter do you usually have? Don\'t want to overdo it!',
+      parentId: 'comment_3_0',
+      likes: 2,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T12:45:00.000Z',
+      updatedAt: '2024-12-28T12:45:00.000Z'
+    },
+    {
+      id: 'comment_3_4',
+      postId: '3',
+      authorId: 'user_sarah_johnson',
+      authorName: 'Sarah Johnson',
+      content: '@Ryan Smith Just about 1 tablespoon. Enough for energy but won\'t weigh you down!',
+      parentId: 'comment_3_0',
+      likes: 5,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T13:30:00.000Z',
+      updatedAt: '2024-12-28T13:30:00.000Z'
+    },
+    {
+      id: 'comment_3_5',
+      postId: '3',
+      authorId: 'commenter_david_kim',
+      authorName: 'David Kim',
+      content: 'Apple slices with a small amount of peanut butter. Simple and effective.',
+      parentId: null,
+      likes: 3,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T14:15:00.000Z',
+      updatedAt: '2024-12-28T14:15:00.000Z'
+    },
+    {
+      id: 'comment_3_6',
+      postId: '3',
+      authorId: 'commenter_tom_brown',
+      authorName: 'Tom Brown',
+      content: 'Coffee and a small handful of dates. Natural sugars kick in perfectly!',
+      parentId: null,
+      likes: 4,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T15:00:00.000Z',
+      updatedAt: '2024-12-28T15:00:00.000Z'
+    },
+    {
+      id: 'comment_3_7',
+      postId: '3',
+      authorId: 'commenter_anna_foster',
+      authorName: 'Anna Foster',
+      content: '@Mike Chen Do you have a specific brand of Greek yogurt you recommend?',
+      parentId: 'comment_3_1',
+      likes: 1,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T15:45:00.000Z',
+      updatedAt: '2024-12-28T15:45:00.000Z'
+    },
+    {
+      id: 'comment_3_8',
+      postId: '3',
+      authorId: 'user_mike_chen',
+      authorName: 'Mike Chen',
+      content: '@Anna Foster I usually go for plain, low-fat Greek yogurt - any brand works! Just avoid the ones with added sugars.',
+      parentId: 'comment_3_1',
+      likes: 7,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T16:30:00.000Z',
+      updatedAt: '2024-12-28T16:30:00.000Z'
+    },
+    {
+      id: 'comment_3_9',
+      postId: '3',
+      authorId: 'user_emily_davis',
+      authorName: 'Emily Davis',
+      content: 'Green smoothie with spinach, banana, and protein powder. Tastes better than it sounds! 😅',
+      parentId: null,
+      likes: 5,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T17:15:00.000Z',
+      updatedAt: '2024-12-28T17:15:00.000Z'
+    },
+    {
+      id: 'comment_3_10',
+      postId: '3',
+      authorId: 'commenter_alex_davis',
+      authorName: 'Alex Davis',
+      content: 'Sometimes just a piece of toast with honey if I\'m in a rush.',
+      parentId: null,
+      likes: 2,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T18:00:00.000Z',
+      updatedAt: '2024-12-28T18:00:00.000Z'
+    },
+    {
+      id: 'comment_3_11',
+      postId: '3',
+      authorId: 'commenter_james_wilson',
+      authorName: 'James Wilson',
+      content: '@Emily Davis That actually sounds amazing! Do you have a recipe?',
+      parentId: 'comment_3_9',
+      likes: 3,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T18:45:00.000Z',
+      updatedAt: '2024-12-28T18:45:00.000Z'
+    },
+    {
+      id: 'comment_3_12',
+      postId: '3',
+      authorId: 'user_emily_davis',
+      authorName: 'Emily Davis',
+      content: 'These are all fantastic suggestions! I\'m definitely trying the banana with almond butter tomorrow. 🍌',
+      parentId: null,
+      likes: 6,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T19:30:00.000Z',
+      updatedAt: '2024-12-28T19:30:00.000Z'
+    },
+    {
+      id: 'comment_3_13',
+      postId: '3',
+      authorId: 'commenter_lisa_wong',
+      authorName: 'Lisa Wong',
+      content: '@Emily Davis You\'ll love it! Such a classic combo for a reason.',
+      parentId: 'comment_3_12',
+      likes: 4,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T20:15:00.000Z',
+      updatedAt: '2024-12-28T20:15:00.000Z'
+    },
+    {
+      id: 'comment_3_14',
+      postId: '3',
+      authorId: 'user_emily_davis',
+      authorName: 'Emily Davis',
+      content: '@James Wilson Sure! 1 cup spinach, 1 banana, 1 scoop vanilla protein powder, 1 cup unsweetened almond milk, handful of ice. Blend and enjoy!',
+      parentId: 'comment_3_9',
+      likes: 8,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T21:00:00.000Z',
+      updatedAt: '2024-12-28T21:00:00.000Z'
+    },
+
+    // Comments for Post 4 (Alex's workout session - 5 comments)
+    {
+      id: 'comment_4_0',
+      postId: '4',
+      authorId: 'user_mike_chen',
+      authorName: 'Mike Chen',
+      content: 'Looking strong Alex! Love the energy in these GIFs! 🔥',
+      parentId: null,
+      likes: 7,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-27T21:05:00.000Z',
+      updatedAt: '2024-12-27T21:05:00.000Z'
+    },
+    {
+      id: 'comment_4_1',
+      postId: '4',
+      authorId: 'user_sarah_johnson',
+      authorName: 'Sarah Johnson',
+      content: 'Your form on those deadlifts is perfect! 💪',
+      parentId: null,
+      likes: 5,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-27T21:50:00.000Z',
+      updatedAt: '2024-12-27T21:50:00.000Z'
+    },
+    {
+      id: 'comment_4_2',
+      postId: '4',
+      authorId: 'commenter_david_kim',
+      authorName: 'David Kim',
+      content: 'Those GIFs are motivating me to hit the gym right now!',
+      parentId: null,
+      likes: 4,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-27T22:35:00.000Z',
+      updatedAt: '2024-12-27T22:35:00.000Z'
+    },
+    {
+      id: 'comment_4_3',
+      postId: '4',
+      authorId: 'user_emily_davis',
+      authorName: 'Emily Davis',
+      content: 'What\'s your current training split? Looking for some inspiration.',
+      parentId: null,
+      likes: 2,
+      likedByUser: false,
+      replies: [],
+      depth: 0,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-27T23:20:00.000Z',
+      updatedAt: '2024-12-27T23:20:00.000Z'
+    },
+    {
+      id: 'comment_4_4',
+      postId: '4',
+      authorId: 'user_alex_rodriguez',
+      authorName: 'Alex Rodriguez',
+      content: '@Emily Davis I\'m doing a 4-day upper/lower split right now. Upper body twice, lower body twice, with cardio on rest days!',
+      parentId: 'comment_4_3',
+      likes: 6,
+      likedByUser: false,
+      replies: [],
+      depth: 1,
+      isEdited: false,
+      isPinned: false,
+      createdAt: '2024-12-28T00:05:00.000Z',
+      updatedAt: '2024-12-28T00:05:00.000Z'
     }
   ];
 
@@ -308,58 +969,324 @@ const DemoContent: React.FC = () => {
   // Posts storage functions (defined early so they can be used in useState)
   const savePostsToStorage = async (data: any[]) => {
     try {
-      localStorage.setItem('demo-posts', JSON.stringify(data.map(post => ({
+      const serializedData = data.map(post => ({
         ...post,
         createdAt: post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt
-      }))));
+      }));
+
+      if (storageBackend === 'localStorage') {
+        localStorage.setItem('demo-posts', JSON.stringify(serializedData));
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        
+        const transaction = db.transaction(['demo-posts'], 'readwrite');
+        const store = transaction.objectStore('demo-posts');
+        
+        await new Promise((resolve, reject) => {
+          const putRequest = store.put({ key: 'posts', value: serializedData });
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
+        });
+        
+        db.close();
+      }
     } catch (error) {
-      console.error('Failed to save posts to localStorage:', error);
+      console.error(`Failed to save posts to ${storageBackend}:`, error);
     }
   };
 
-  const loadPostsFromStorage = (): any[] => {
+  const loadPostsFromStorage = async (): Promise<any[]> => {
     try {
-      const localData = localStorage.getItem('demo-posts');
-      if (localData) {
-        const posts = JSON.parse(localData);
-        return posts.map((post: any) => ({
-          ...post,
-          createdAt: post.createdAt ? new Date(post.createdAt) : new Date()
-        }));
+      if (storageBackend === 'localStorage') {
+        const localData = localStorage.getItem('demo-posts');
+        if (localData) {
+          const posts = JSON.parse(localData);
+          return posts.map((post: any) => ({
+            ...post,
+            createdAt: post.createdAt ? new Date(post.createdAt) : new Date()
+          }));
+        }
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        
+        const transaction = db.transaction(['demo-posts'], 'readonly');
+        const store = transaction.objectStore('demo-posts');
+        
+        const result = await new Promise<any>((resolve, reject) => {
+          const getRequest = store.get('posts');
+          getRequest.onsuccess = () => resolve(getRequest.result);
+          getRequest.onerror = () => reject(getRequest.error);
+        });
+        
+        db.close();
+        
+        if (result && result.value) {
+          return result.value.map((post: any) => ({
+            ...post,
+            createdAt: post.createdAt ? new Date(post.createdAt) : new Date()
+          }));
+        }
       }
     } catch (error) {
-      console.error('Failed to load posts from localStorage:', error);
+      console.error(`Failed to load posts from ${storageBackend}:`, error);
     }
-    return samplePosts; // Return sample posts as fallback
+    return []; // Return empty array when no data in storage
   };
 
   // User likes tracking
-  const loadUserLikes = (): Set<string> => {
+  const loadUserLikes = async (): Promise<Set<string>> => {
     try {
-      const likesData = localStorage.getItem('demo-user-likes');
-      return likesData ? new Set(JSON.parse(likesData)) : new Set();
+      if (storageBackend === 'localStorage') {
+        const likesData = localStorage.getItem('demo-user-likes');
+        return likesData ? new Set(JSON.parse(likesData)) : new Set();
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        
+        const transaction = db.transaction(['demo-user-likes'], 'readonly');
+        const store = transaction.objectStore('demo-user-likes');
+        
+        const result = await new Promise<any>((resolve, reject) => {
+          const getRequest = store.get('likes');
+          getRequest.onsuccess = () => resolve(getRequest.result);
+          getRequest.onerror = () => reject(getRequest.error);
+        });
+        
+        db.close();
+        
+        if (result && result.value) {
+          return new Set(result.value);
+        }
+      }
     } catch (error) {
-      console.error('Failed to load user likes:', error);
-      return new Set();
+      console.error(`Failed to load user likes from ${storageBackend}:`, error);
+    }
+    return new Set();
+  };
+
+  const saveUserLikes = async (likes: Set<string>) => {
+    try {
+      const likesArray = Array.from(likes);
+      
+      if (storageBackend === 'localStorage') {
+        localStorage.setItem('demo-user-likes', JSON.stringify(likesArray));
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        
+        const transaction = db.transaction(['demo-user-likes'], 'readwrite');
+        const store = transaction.objectStore('demo-user-likes');
+        
+        await new Promise((resolve, reject) => {
+          const putRequest = store.put({ key: 'likes', value: likesArray });
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
+        });
+        
+        db.close();
+      }
+    } catch (error) {
+      console.error(`Failed to save user likes to ${storageBackend}:`, error);
     }
   };
 
-  const saveUserLikes = (likes: Set<string>) => {
+  // Storage backend configuration (needs to be early so other state can use it)
+  const [storageBackend, setStorageBackend] = React.useState<'localStorage' | 'indexedDB'>('localStorage');
+
+  // Centralized IndexedDB initialization
+  const initializeIndexedDB = async (): Promise<IDBDatabase> => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('plugin_data', 3); // Use version 3 to ensure upgrade
+      
+      request.onsuccess = () => {
+        const db = request.result;
+        // Check if all required object stores exist
+        const requiredStores = ['demo-posts', 'demo-user-likes', 'demo-courses', 'demo-members', 'demo-products', 'demo-events'];
+        const missingStores = requiredStores.filter(store => !db.objectStoreNames.contains(store));
+        
+        if (missingStores.length > 0) {
+          // Close and delete database to force recreation with all stores
+          db.close();
+          const deleteRequest = indexedDB.deleteDatabase('plugin_data');
+          deleteRequest.onsuccess = () => {
+            // Reopen with all stores
+            const newRequest = indexedDB.open('plugin_data', 3);
+            newRequest.onsuccess = () => resolve(newRequest.result);
+            newRequest.onerror = () => reject(newRequest.error);
+            newRequest.onupgradeneeded = createStores;
+          };
+          deleteRequest.onerror = () => reject(deleteRequest.error);
+        } else {
+          resolve(db);
+        }
+      };
+      
+      request.onerror = () => reject(request.error);
+      
+      const createStores = () => {
+        const db = request.result;
+        
+        // Create all object stores needed
+        if (!db.objectStoreNames.contains('demo-posts')) {
+          db.createObjectStore('demo-posts', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('demo-user-likes')) {
+          db.createObjectStore('demo-user-likes', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('demo-courses')) {
+          db.createObjectStore('demo-courses', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('demo-members')) {
+          db.createObjectStore('demo-members', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('demo-products')) {
+          db.createObjectStore('demo-products', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('demo-events')) {
+          db.createObjectStore('demo-events', { keyPath: 'key' });
+        }
+      };
+      
+      request.onupgradeneeded = createStores;
+    });
+  };
+
+  // Additional storage functions for other data types
+  const saveMembers = async (data: any[]) => {
     try {
-      localStorage.setItem('demo-user-likes', JSON.stringify(Array.from(likes)));
+      if (storageBackend === 'localStorage') {
+        localStorage.setItem('demo-members', JSON.stringify(data));
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        const transaction = db.transaction(['demo-members'], 'readwrite');
+        const store = transaction.objectStore('demo-members');
+        await new Promise((resolve, reject) => {
+          const putRequest = store.put({ key: 'members', value: data });
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
+        });
+        db.close();
+      }
     } catch (error) {
-      console.error('Failed to save user likes:', error);
+      console.error(`Failed to save members to ${storageBackend}:`, error);
     }
+  };
+
+  const loadMembers = async (): Promise<any[]> => {
+    try {
+      if (storageBackend === 'localStorage') {
+        const localData = localStorage.getItem('demo-members');
+        return localData ? JSON.parse(localData) : [];
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        const transaction = db.transaction(['demo-members'], 'readonly');
+        const store = transaction.objectStore('demo-members');
+        const result = await new Promise<any>((resolve, reject) => {
+          const getRequest = store.get('members');
+          getRequest.onsuccess = () => resolve(getRequest.result);
+          getRequest.onerror = () => reject(getRequest.error);
+        });
+        db.close();
+        return result && result.value ? result.value : [];
+      }
+    } catch (error) {
+      console.error(`Failed to load members from ${storageBackend}:`, error);
+    }
+    return [];
+  };
+
+  const saveProducts = async (data: any[]) => {
+    try {
+      if (storageBackend === 'localStorage') {
+        localStorage.setItem('demo-products', JSON.stringify(data));
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        const transaction = db.transaction(['demo-products'], 'readwrite');
+        const store = transaction.objectStore('demo-products');
+        await new Promise((resolve, reject) => {
+          const putRequest = store.put({ key: 'products', value: data });
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
+        });
+        db.close();
+      }
+    } catch (error) {
+      console.error(`Failed to save products to ${storageBackend}:`, error);
+    }
+  };
+
+  const loadProducts = async (): Promise<any[]> => {
+    try {
+      if (storageBackend === 'localStorage') {
+        const localData = localStorage.getItem('demo-products');
+        return localData ? JSON.parse(localData) : [];
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        const transaction = db.transaction(['demo-products'], 'readonly');
+        const store = transaction.objectStore('demo-products');
+        const result = await new Promise<any>((resolve, reject) => {
+          const getRequest = store.get('products');
+          getRequest.onsuccess = () => resolve(getRequest.result);
+          getRequest.onerror = () => reject(getRequest.error);
+        });
+        db.close();
+        return result && result.value ? result.value : [];
+      }
+    } catch (error) {
+      console.error(`Failed to load products from ${storageBackend}:`, error);
+    }
+    return [];
+  };
+
+  const saveEvents = async (data: any[]) => {
+    try {
+      if (storageBackend === 'localStorage') {
+        localStorage.setItem('demo-events', JSON.stringify(data));
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        const transaction = db.transaction(['demo-events'], 'readwrite');
+        const store = transaction.objectStore('demo-events');
+        await new Promise((resolve, reject) => {
+          const putRequest = store.put({ key: 'events', value: data });
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
+        });
+        db.close();
+      }
+    } catch (error) {
+      console.error(`Failed to save events to ${storageBackend}:`, error);
+    }
+  };
+
+  const loadEvents = async (): Promise<any[]> => {
+    try {
+      if (storageBackend === 'localStorage') {
+        const localData = localStorage.getItem('demo-events');
+        return localData ? JSON.parse(localData) : [];
+      } else if (storageBackend === 'indexedDB') {
+        const db = await initializeIndexedDB();
+        const transaction = db.transaction(['demo-events'], 'readonly');
+        const store = transaction.objectStore('demo-events');
+        const result = await new Promise<any>((resolve, reject) => {
+          const getRequest = store.get('events');
+          getRequest.onsuccess = () => resolve(getRequest.result);
+          getRequest.onerror = () => reject(getRequest.error);
+        });
+        db.close();
+        return result && result.value ? result.value : [];
+      }
+    } catch (error) {
+      console.error(`Failed to load events from ${storageBackend}:`, error);
+    }
+    return [];
   };
 
   // Mock data states for storage-agnostic plugins
   const [courses, setCourses] = React.useState<any[]>([]);
-  const [posts, setPosts] = React.useState<any[]>(() => loadPostsFromStorage());
-  const [userLikes, setUserLikes] = React.useState<Set<string>>(() => loadUserLikes());
-  const [members, setMembers] = React.useState<any[]>(sampleMembers);
-  const [products, setProducts] = React.useState<any[]>(sampleProducts);
+  const [posts, setPosts] = React.useState<any[]>([]); // Initialize empty - data comes from storage
+  const [userLikes, setUserLikes] = React.useState<Set<string>>(new Set()); // Initialize empty
+  const [members, setMembers] = React.useState<any[]>([]); // Initialize empty - data comes from storage
+  const [products, setProducts] = React.useState<any[]>([]); // Initialize empty - data comes from storage
   const [guidelines, setGuidelines] = React.useState<string[]>(sampleGuidelines);
-  const [events, setEvents] = React.useState<any[]>(sampleEvents);
+  const [events, setEvents] = React.useState<any[]>([]); // Initialize empty - data comes from storage
   const [leaderboards, setLeaderboards] = React.useState<any>(sampleLeaderboards);
   const [levels, setLevels] = React.useState<any[]>(sampleLevels);
   const [featuredMember, setFeaturedMember] = React.useState<any>(sampleFeaturedMember);
@@ -1802,6 +2729,32 @@ const DemoContent: React.FC = () => {
     'billing:access': true
   });
 
+  // Load data from storage on mount and when storage backend changes
+  React.useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [loadedPosts, loadedLikes, loadedCourses, loadedMembers, loadedProducts, loadedEvents] = await Promise.all([
+          loadPostsFromStorage(),
+          loadUserLikes(),
+          loadFromStorage(),
+          loadMembers(),
+          loadProducts(),
+          loadEvents()
+        ]);
+        setPosts(loadedPosts);
+        setUserLikes(loadedLikes);
+        setCourses(loadedCourses);
+        setMembers(loadedMembers);
+        setProducts(loadedProducts);
+        setEvents(loadedEvents);
+      } catch (error) {
+        console.error('Failed to load data from storage:', error);
+      }
+    };
+    
+    loadData();
+  }, [storageBackend]); // Re-load when storage backend changes
+
   // Update contributions when posts change (to keep them in sync)
   React.useEffect(() => {
     setContributions(prev => prev.map(contribution => {
@@ -1823,7 +2776,7 @@ const DemoContent: React.FC = () => {
   const [profileStats, setProfileStats] = React.useState<any>(sampleProfileStats);
   const [loading, setLoading] = React.useState(false);
   const [savingStates, setSavingStates] = React.useState<{[key: string]: 'idle' | 'saving' | 'saved' | 'error'}>({});
-  const [storageBackend, setStorageBackend] = React.useState<'memory' | 'localStorage' | 'indexedDB' | 'mockAPI'>('memory');
+  const [reseedFromMock, setReseedFromMock] = React.useState(false);
   
   // Helper function to generate IDs
   const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -1953,8 +2906,19 @@ const DemoContent: React.FC = () => {
         localStorage.setItem('demo-courses', JSON.stringify(data));
         break;
       case 'indexedDB':
-        // Simulate IndexedDB with localStorage for demo
-        localStorage.setItem('demo-courses-idb', JSON.stringify(data));
+        // Use real IndexedDB
+        const db = await initializeIndexedDB();
+        
+        const transaction = db.transaction(['demo-courses'], 'readwrite');
+        const store = transaction.objectStore('demo-courses');
+        
+        await new Promise((resolve, reject) => {
+          const putRequest = store.put({ key: 'courses', value: data });
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
+        });
+        
+        db.close();
         break;
       case 'mockAPI':
         // Simulate API call
@@ -1974,8 +2938,26 @@ const DemoContent: React.FC = () => {
         const localData = localStorage.getItem('demo-courses');
         return localData ? JSON.parse(localData) : [];
       case 'indexedDB':
-        const idbData = localStorage.getItem('demo-courses-idb');
-        return idbData ? JSON.parse(idbData) : [];
+        // Use real IndexedDB
+        try {
+          const db = await initializeIndexedDB();
+          
+          const transaction = db.transaction(['demo-courses'], 'readonly');
+          const store = transaction.objectStore('demo-courses');
+          
+          const result = await new Promise<any>((resolve, reject) => {
+            const getRequest = store.get('courses');
+            getRequest.onsuccess = () => resolve(getRequest.result);
+            getRequest.onerror = () => reject(getRequest.error);
+          });
+          
+          db.close();
+          
+          return result && result.value ? result.value : [];
+        } catch (error) {
+          console.error('Failed to load courses from IndexedDB:', error);
+          return [];
+        }
       case 'mockAPI':
         await new Promise(resolve => setTimeout(resolve, 300));
         const apiData = sessionStorage.getItem('demo-courses-api');
@@ -2009,6 +2991,194 @@ const DemoContent: React.FC = () => {
       courseCount: courses.length
     }, 'demo-storage');
   };
+
+  // Reseed functionality - clear current storage and reload from mock data
+  const handleReseedFromMock = React.useCallback(async () => {
+    if (!reseedFromMock) return;
+    
+    try {
+      setLoading(true);
+      
+      // Determine what data to reseed based on active tab
+      const shouldReseedPosts = activeTab === 'messaging' || activeTab === 'community' || activeTab === 'community-sidebar';
+      const shouldReseedMembers = activeTab === 'members';
+      const shouldReseedProducts = activeTab === 'merchandise';
+      const shouldReseedEvents = activeTab === 'calendar';
+      const shouldReseedCourses = activeTab === 'classroom' || activeTab === 'course-builder';
+      
+      // Clear specific storage keys based on active tab
+      if (storageBackend === 'localStorage') {
+        const keysToRemove: string[] = [];
+        
+        if (shouldReseedPosts) {
+          keysToRemove.push(...Object.keys(localStorage).filter(key => 
+            key.startsWith('course_framework_community') || 
+            key.includes('_post_') ||
+            key.includes('_likes_') ||
+            key.includes('_comments_')
+          ));
+        }
+        if (shouldReseedMembers) {
+          keysToRemove.push('demo-members');
+        }
+        if (shouldReseedProducts) {
+          keysToRemove.push('demo-products');
+        }
+        if (shouldReseedEvents) {
+          keysToRemove.push('demo-events');
+        }
+        if (shouldReseedCourses) {
+          keysToRemove.push(...Object.keys(localStorage).filter(key => 
+            key.startsWith('plugin_') && key.includes('courses')
+          ));
+        }
+        
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+      } else if (storageBackend === 'indexedDB') {
+        // For IndexedDB, we need to clear specific object stores
+        try {
+          const db = await initializeIndexedDB();
+          const stores: string[] = [];
+          
+          if (shouldReseedPosts) stores.push('demo-posts', 'demo-user-likes');
+          if (shouldReseedMembers) stores.push('demo-members');
+          if (shouldReseedProducts) stores.push('demo-products');
+          if (shouldReseedEvents) stores.push('demo-events');
+          if (shouldReseedCourses) stores.push('demo-courses');
+          
+          if (stores.length > 0) {
+            const transaction = db.transaction(stores, 'readwrite');
+            stores.forEach(storeName => {
+              const store = transaction.objectStore(storeName);
+              store.clear();
+            });
+            
+            await new Promise((resolve, reject) => {
+              transaction.oncomplete = () => resolve(true);
+              transaction.onerror = () => reject(transaction.error);
+            });
+          }
+          
+          db.close();
+        } catch (error) {
+          console.warn('Error clearing IndexedDB:', error);
+        }
+      }
+      
+      // Reset state and save data based on active tab
+      if (shouldReseedCourses) {
+        setCourses([]);
+        await saveToStorage([]);
+      }
+      
+      if (shouldReseedPosts) {
+        setPosts(samplePosts);
+        setUserLikes(new Set());
+      }
+      
+      if (shouldReseedMembers) {
+        setMembers(sampleMembers);
+        await saveMembers(sampleMembers);
+      }
+      
+      if (shouldReseedProducts) {
+        setProducts(sampleProducts);
+        await saveProducts(sampleProducts);
+      }
+      
+      if (shouldReseedEvents) {
+        setEvents(sampleEvents);
+        await saveEvents(sampleEvents);
+      }
+      
+      // Populate storage with like data and comments from sample posts only if reseeding posts
+      if (shouldReseedPosts) {
+        for (const post of samplePosts) {
+          // Create fake likes to match the sample post like counts with fixed dates
+          const likes = [];
+          const postDate = new Date(post.createdAt);
+          for (let i = 0; i < (post.likes || 0); i++) {
+            // Spread likes over time after post creation (up to 3 days)
+            const likeDate = new Date(postDate.getTime() + (i * 3600000) + (Math.random() * 86400000 * 3));
+            likes.push({
+              id: `like_${post.id}_${i}`,
+              userId: `sample_user_${i}`,
+              userName: `User${i}`,
+              postId: post.id,
+              createdAt: likeDate
+            });
+          }
+          
+          // Use the static sample comments for this post
+          const postComments = sampleComments.filter(comment => comment.postId === post.id);
+          
+          // Store posts, likes, and comments in the selected storage backend with correct prefix
+          const storagePrefix = `${storageBackend}_course_framework_community`;
+          const postKey = `${storagePrefix}_post_${post.id}`;
+          const likesKey = `${storagePrefix}_post_likes_${post.id}`;
+          const commentsKey = `${storagePrefix}_post_comments_${post.id}`;
+          
+          if (storageBackend === 'localStorage') {
+            localStorage.setItem(postKey, JSON.stringify(post));
+            localStorage.setItem(likesKey, JSON.stringify(likes));
+            localStorage.setItem(commentsKey, JSON.stringify(postComments));
+          } else if (storageBackend === 'indexedDB') {
+            // Store in IndexedDB using the same storage abstraction
+            try {
+              const db = await initializeIndexedDB();
+              const transaction = db.transaction(['demo-posts', 'demo-user-likes', 'demo-posts'], 'readwrite');
+              const postsStore = transaction.objectStore('demo-posts');
+              const likesStore = transaction.objectStore('demo-user-likes');
+              const commentsStore = transaction.objectStore('demo-posts'); // Comments are stored with posts
+              
+              // Store posts, likes and comments using the same key format as our storage functions
+              postsStore.put({ key: postKey, value: post });
+              likesStore.put({ key: likesKey, value: likes });
+              commentsStore.put({ key: commentsKey, value: postComments });
+              
+              await new Promise((resolve, reject) => {
+                transaction.oncomplete = () => resolve(true);
+                transaction.onerror = () => reject(transaction.error);
+              });
+              
+              db.close();
+            } catch (error) {
+              console.error('Error storing data in IndexedDB:', error);
+              throw new Error(`Failed to store data in IndexedDB: ${error}`);
+            }
+          }
+        }
+      }
+      
+      // Reset checkbox
+      setReseedFromMock(false);
+      
+      // Create specific success message based on what was reseeded
+      let dataTypes = [];
+      if (shouldReseedPosts) dataTypes.push('posts');
+      if (shouldReseedMembers) dataTypes.push('members');
+      if (shouldReseedProducts) dataTypes.push('products');
+      if (shouldReseedEvents) dataTypes.push('events');
+      if (shouldReseedCourses) dataTypes.push('courses');
+      
+      const dataTypeText = dataTypes.length > 0 ? dataTypes.join(', ') : 'no data';
+      showSuccess('Data Reseeded', `Cleared ${storageBackend} and reloaded ${dataTypeText} from mock data for the ${activeTab} tab.`);
+      
+    } catch (error) {
+      console.error('Error reseeding data:', error);
+      showWarning('Reseed Error', 'Failed to reseed data. Check console for details.');
+      setReseedFromMock(false);
+    } finally {
+      setLoading(false);
+    }
+  }, [reseedFromMock, storageBackend, showSuccess, showWarning]);
+
+  // Handle reseed checkbox changes
+  React.useEffect(() => {
+    if (reseedFromMock) {
+      handleReseedFromMock();
+    }
+  }, [reseedFromMock, handleReseedFromMock]);
   
   // Storage-agnostic callback functions with event bus integration
   const handleCreateCourse = async (course: any) => {
@@ -2171,7 +3341,7 @@ const DemoContent: React.FC = () => {
     const updatedPosts = [...posts, newPost];
     setPosts(updatedPosts);
     
-    // Save to localStorage
+    // Save to storage
     await savePostsToStorage(updatedPosts);
     
     // Emit event
@@ -2179,19 +3349,163 @@ const DemoContent: React.FC = () => {
     showSuccess('Post Created!', 'Your post has been shared with the community.');
   };
 
-  const handleAddComment = async (postId: string, content: string) => {
+  const handleLoadComments = async (postId: string): Promise<any[]> => {
+    try {
+      const storagePrefix = `${storageBackend}_course_framework_community`;
+      const commentsKey = `${storagePrefix}_post_comments_${postId}`;
+      
+      let comments: any[] = [];
+      
+      if (storageBackend === 'localStorage') {
+        const commentsData = localStorage.getItem(commentsKey);
+        comments = commentsData ? JSON.parse(commentsData) : [];
+      } else if (storageBackend === 'indexedDB') {
+        const request = indexedDB.open('plugin_data', 1);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        
+        const transaction = db.transaction(['comments'], 'readonly');
+        const commentsStore = transaction.objectStore('comments');
+        
+        const commentsRequest = commentsStore.get(commentsKey);
+        const commentsData = await new Promise<any>((resolve, reject) => {
+          commentsRequest.onsuccess = () => resolve(commentsRequest.result);
+          commentsRequest.onerror = () => reject(commentsRequest.error);
+        });
+        
+        db.close();
+        comments = commentsData?.value || [];
+      }
+      
+      if (comments.length === 0) {
+        return [];
+      }
+      
+      // Build the comment tree structure (replies nested under parent comments)
+      const commentMap = new Map();
+      const rootComments: any[] = [];
+      
+      // First pass: create map and prepare comments
+      comments.forEach((comment: any) => {
+        const processedComment = {
+          ...comment,
+          createdAt: new Date(comment.createdAt),
+          updatedAt: new Date(comment.updatedAt),
+          replies: []
+        };
+        commentMap.set(comment.id, processedComment);
+      });
+      
+      // Second pass: build tree structure
+      comments.forEach((comment: any) => {
+        const processedComment = commentMap.get(comment.id);
+        if (comment.parentId) {
+          const parent = commentMap.get(comment.parentId);
+          if (parent) {
+            parent.replies.push(processedComment);
+          }
+        } else {
+          rootComments.push(processedComment);
+        }
+      });
+      
+      // Sort by creation date (oldest first for natural conversation flow)
+      const sortComments = (commentList: any[]) => {
+        commentList.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        commentList.forEach((comment: any) => {
+          if (comment.replies.length > 0) {
+            sortComments(comment.replies);
+          }
+        });
+      };
+      
+      sortComments(rootComments);
+      console.log(`[Demo] Loaded ${comments.length} total comments for post ${postId}, ${rootComments.length} top-level`);
+      return rootComments;
+    } catch (error) {
+      console.error('[Demo] Error loading comments:', error);
+      return [];
+    }
+  };
+
+  const handleAddComment = async (postId: string, content: string, parentId?: string, mediaData?: any) => {
+    // Create the new comment object
+    const newComment = {
+      id: `comment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      postId,
+      authorId: mockUser.id,
+      authorName: mockUser.profile.displayName,
+      authorAvatar: mockUser.profile.avatar,
+      content,
+      parentId,
+      likes: 0,
+      likedByUser: false,
+      replies: [],
+      depth: parentId ? 1 : 0, // Simple depth calculation
+      isEdited: false,
+      isPinned: false,
+      videoUrl: mediaData?.type === 'video' ? mediaData.url : undefined,
+      linkUrl: mediaData?.linkUrl,
+      attachments: mediaData?.attachments,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // Store comment in the appropriate storage backend
+    const storagePrefix = `${storageBackend}_course_framework_community`;
+    const commentsKey = `${storagePrefix}_post_comments_${postId}`;
+    
+    if (storageBackend === 'localStorage') {
+      const existingComments = JSON.parse(localStorage.getItem(commentsKey) || '[]');
+      existingComments.push(newComment);
+      localStorage.setItem(commentsKey, JSON.stringify(existingComments));
+    } else if (storageBackend === 'indexedDB') {
+      try {
+        const request = indexedDB.open('plugin_data', 1);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        
+        const transaction = db.transaction(['comments'], 'readwrite');
+        const commentsStore = transaction.objectStore('comments');
+        
+        // Get existing comments
+        const existingRequest = commentsStore.get(commentsKey);
+        const existingData = await new Promise<any>((resolve, reject) => {
+          existingRequest.onsuccess = () => resolve(existingRequest.result);
+          existingRequest.onerror = () => reject(existingRequest.error);
+        });
+        
+        const existingComments = existingData?.value || [];
+        existingComments.push(newComment);
+        
+        await new Promise((resolve, reject) => {
+          const updateRequest = commentsStore.put({ key: commentsKey, value: existingComments });
+          updateRequest.onsuccess = () => resolve(undefined);
+          updateRequest.onerror = () => reject(updateRequest.error);
+        });
+        
+        db.close();
+      } catch (error) {
+        console.error('Error storing comment in IndexedDB:', error);
+      }
+    }
+    
     // Update the comment count for the specific post
     const updatedPosts = posts.map((post: any) => 
       post.id === postId ? { ...post, comments: (post.comments || 0) + 1 } : post
     );
     setPosts(updatedPosts);
     
-    // Save to localStorage
+    // Save posts to storage
     await savePostsToStorage(updatedPosts);
     
     // Emit event
-    newEventBus.emit(EVENTS.COMMENT_ADDED, { postId, content }, 'community');
-    showSuccess('Comment Added!', 'Your comment has been posted.');
+    newEventBus.emit(EVENTS.COMMENT_ADDED, { postId, content, parentId }, 'community');
+    showSuccess(parentId ? 'Reply Added!' : 'Comment Added!', parentId ? 'Your reply has been posted.' : 'Your comment has been posted.');
   };
   
   const handleLikePost = async (postId: string) => {
@@ -2221,9 +3535,9 @@ const DemoContent: React.FC = () => {
     setUserLikes(newUserLikes);
     setPosts(updatedPosts);
     
-    // Save to localStorage
+    // Save to storage
     await savePostsToStorage(updatedPosts);
-    saveUserLikes(newUserLikes as Set<string>);
+    await saveUserLikes(newUserLikes as Set<string>);
     
     // Emit event
     newEventBus.emit(isAlreadyLiked ? EVENTS.POST_UNLIKED : EVENTS.POST_LIKED, { 
@@ -3337,6 +4651,8 @@ const DemoContent: React.FC = () => {
   React.useEffect(() => {
     console.log('🔧 Registering plugins...');
     console.log('courseBuilderPlugin:', courseBuilderPlugin);
+    console.log('messagingPlugin:', messagingPlugin);
+    console.log('communitySidebarPlugin:', communitySidebarPlugin);
     console.log('communityPlugin:', communityPlugin);
     console.log('classroomPlugin:', classroomPlugin);
     console.log('aboutPlugin:', aboutPlugin);
@@ -3346,8 +4662,10 @@ const DemoContent: React.FC = () => {
     console.log('leaderboardPlugin:', leaderboardPlugin);
     console.log('communityMyProfilePlugin:', communityMyProfilePlugin);
     
-    // Register new plugins
+    // Register new plugins (dependencies first)
     pluginRegistry.register(courseBuilderPlugin);
+    pluginRegistry.register(messagingPlugin);
+    pluginRegistry.register(communitySidebarPlugin);
     pluginRegistry.register(communityPlugin);
     pluginRegistry.register(classroomPlugin);
     pluginRegistry.register(aboutPlugin);
@@ -3367,8 +4685,15 @@ const DemoContent: React.FC = () => {
     pluginRegistry.register(authPlugin);
     pluginRegistry.register(coursePublishingPlugin);
     
-    // Install plugins automatically
+    // Install plugins automatically (dependencies will be auto-installed)
     pluginRegistry.install('course-builder');
+    
+    // Install dependencies first, then community plugin
+    console.log('🔄 Installing messaging plugin...');
+    pluginRegistry.install('messaging');
+    console.log('🔄 Installing community-sidebar plugin...');
+    pluginRegistry.install('community-sidebar');
+    console.log('🔄 Installing community plugin...');
     pluginRegistry.install('community');
     pluginRegistry.install('classroom');
     pluginRegistry.install('about');
@@ -3520,11 +4845,23 @@ const DemoContent: React.FC = () => {
                   onChange={(e) => handleStorageBackendChange(e.target.value as typeof storageBackend)}
                   className="px-3 py-1 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="memory">In-Memory</option>
                   <option value="localStorage">Local Storage</option>
                   <option value="indexedDB">IndexedDB</option>
-                  <option value="mockAPI">Mock API</option>
                 </select>
+              </div>
+              
+              {/* Reseed Checkbox */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="reseed-checkbox"
+                  checked={reseedFromMock}
+                  onChange={(e) => setReseedFromMock(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="reseed-checkbox" className="text-sm font-medium text-gray-700">
+                  Reseed data from Mock Data
+                </label>
               </div>
               
               {/* Import/Export Buttons */}
@@ -3609,18 +4946,115 @@ const DemoContent: React.FC = () => {
           const baseProps = {
             currentUser: mockUser,
             communityId: mockCommunity.id,
-            community: mockCommunity,
+            community: {
+              ...mockCommunity,
+              stats: {
+                memberCount: 1250,
+                online: 42,
+                adminCount: 5
+              }
+            },
             userRole: "owner" as const,
           };
 
           // Plugin-specific props mapping (prevents duplicate attributes)
           const pluginPropsMap: Record<string, any> = {
-            'community': {
+            'messaging': {
+              // Use exactly the same props as community plugin
               posts: posts,
               userLikes: userLikes,
+              loading: false,
+              error: undefined,
               onCreatePost: handleCreatePost,
               onLikePost: handleLikePost,
+              onUnlikePost: async (postId: string) => {
+                // Toggle unlike (reverse of like logic)
+                const post = posts.find(p => p.id === postId);
+                if (post && userLikes.has(postId)) {
+                  const newUserLikes = new Set(userLikes);
+                  newUserLikes.delete(postId);
+                  const updatedPosts = posts.map((p: any) => 
+                    p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p
+                  );
+                  setPosts(updatedPosts);
+                  setUserLikes(newUserLikes);
+                  await savePostsToStorage(updatedPosts);
+                  await saveUserLikes(newUserLikes);
+                }
+              },
+              onDeletePost: async (postId: string) => {
+                const updatedPosts = posts.filter((p: any) => p.id !== postId);
+                setPosts(updatedPosts);
+                await savePostsToStorage(updatedPosts);
+                showSuccess('Post Deleted!', 'The post has been removed.');
+              },
               onAddComment: handleAddComment,
+              onLoadComments: handleLoadComments,
+              onLoadMore: async () => {
+                // Simulated load more functionality
+                console.log('Load more posts...');
+              },
+              onRefresh: async () => {
+                // Simulated refresh functionality
+                const refreshedPosts = loadPostsFromStorage();
+                setPosts(refreshedPosts);
+                showInfo('Refreshed!', 'Posts have been refreshed.');
+              },
+            },
+            'community-sidebar': {
+              community: {
+                ...mockCommunity,
+                stats: {
+                  memberCount: 1250,
+                  online: 42,
+                  adminCount: 5
+                }
+              },
+              currentUser: mockUser,
+              userRole: 'creator',
+            },
+            'community': {
+              // Posts data for messaging components
+              posts: posts,
+              userLikes: userLikes,
+              loading: false,
+              error: undefined,
+              
+              // Action handlers
+              onCreatePost: handleCreatePost,
+              onLikePost: handleLikePost,
+              onUnlikePost: async (postId: string) => {
+                // Toggle unlike (reverse of like logic)
+                const post = posts.find(p => p.id === postId);
+                if (post && userLikes.has(postId)) {
+                  const newUserLikes = new Set(userLikes);
+                  newUserLikes.delete(postId);
+                  const updatedPosts = posts.map((p: any) => 
+                    p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p
+                  );
+                  setPosts(updatedPosts);
+                  setUserLikes(newUserLikes);
+                  await savePostsToStorage(updatedPosts);
+                  await saveUserLikes(newUserLikes);
+                }
+              },
+              onDeletePost: async (postId: string) => {
+                const updatedPosts = posts.filter((p: any) => p.id !== postId);
+                setPosts(updatedPosts);
+                await savePostsToStorage(updatedPosts);
+                showSuccess('Post Deleted!', 'The post has been removed.');
+              },
+              onAddComment: handleAddComment,
+              onLoadMore: async () => {
+                // Simulated load more functionality
+                console.log('Load more posts...');
+              },
+              onRefresh: async () => {
+                // Simulated refresh functionality
+                const refreshedPosts = loadPostsFromStorage();
+                setPosts(refreshedPosts);
+                showInfo('Refreshed!', 'Posts have been refreshed.');
+              },
             },
             'classroom': {
               courses: courses,
