@@ -230,44 +230,43 @@ const PostCard: React.FC<{
     <div style={{ 
       display: 'flex', 
       alignItems: 'center', 
-      gap: theme.spacing.md, 
       fontSize: theme.font.sizeMd, 
       color: theme.colors.textSecondary, 
-      marginBottom: theme.spacing.sm 
+      marginBottom: theme.spacing.md 
     }}>
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onLikePost(post.id)
-        }}
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          fontSize: 'inherit',
-          color: 'inherit'
-        }}
-      >
-        👍 {post.likes || 0}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onLikePost(post.id)
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 'inherit',
+            color: 'inherit'
+          }}
+        >
+          👍 {post.likes || 0}
+        </button>
 
-      <div style={{ display: 'flex', alignItems: 'center' }}>
         <span>💬 {post.comments || 0}</span>
+      </div>
 
-        <div style={{ display: 'flex', marginLeft: theme.spacing.sm }}>
-          {post.commenters?.slice(0, 5).map((user, idx) => (
+      <div style={{ display: 'flex', marginLeft: theme.spacing.lg, gap: theme.spacing.xs }}>
+        {post.commenters?.slice(0, 5).map((user, idx) => (
             <div key={idx} style={{
-              width: '32px',
-              height: '32px',
+              width: '36px',
+              height: '36px',
               borderRadius: '999px',
               backgroundColor: theme.colors.surfaceAlt,
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
               border: `2px solid ${theme.colors.surface}`,
-              fontSize: '12px',
-              fontWeight: 600,
-              marginLeft: idx === 0 ? 0 : '-10px'
+              fontSize: '14px',
+              fontWeight: 600
             }}>
               {user.avatarUrl
                 ? <img src={user.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '999px' }} />
@@ -276,7 +275,6 @@ const PostCard: React.FC<{
           ))}
         </div>
       </div>
-    </div>
 
     {/* New comment time ago */}
     {post.newCommentTimeAgo && (
@@ -788,6 +786,7 @@ export const MessagingDemo: React.FC<PluginProps & {
         onEditComment={handleModalEditComment}
         onDeleteComment={handleModalDeleteComment}
         loadingComments={loadingComments}
+        onEditPost={handleOpenEditModal}
       />
 
       {/* Create Post Modal */}

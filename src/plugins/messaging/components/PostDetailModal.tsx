@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { X, MessageCircle, MoreHorizontal, Link } from 'lucide-react'
+import { X, MessageCircle, Link } from 'lucide-react'
 import type { PostDetailModalProps, CommunityPost, PostComment } from '../types'
 import { defaultTheme } from '../../shared/default-theme'
 import { CommentItem } from './CommentItem'
@@ -7,8 +7,9 @@ import { UnifiedToolbar } from './UnifiedToolbar'
 import { ContentRenderer } from './ContentRenderer'
 import { UnifiedCarousel } from './UnifiedCarousel'
 import { RichTextArea } from './RichTextArea'
+import { PostDropdownMenu } from './PostDropdownMenu'
 
-export const PostDetailModal: React.FC<PostDetailModalProps & { loadingComments?: boolean }> = ({
+export const PostDetailModal: React.FC<PostDetailModalProps & { loadingComments?: boolean; onEditPost?: (post: any) => void }> = ({
   isOpen,
   post,
   currentUser,
@@ -20,7 +21,8 @@ export const PostDetailModal: React.FC<PostDetailModalProps & { loadingComments?
   onUnlikeComment,
   onEditComment,
   onDeleteComment,
-  loadingComments = false
+  loadingComments = false,
+  onEditPost
 }) => {
   
   // Comment box state
@@ -287,16 +289,43 @@ export const PostDetailModal: React.FC<PostDetailModalProps & { loadingComments?
           </div>
           
           <div className="flex items-center space-x-2">
-            {currentUser?.id === post.authorId && (
-              <button 
-                onClick={() => alert(`Edit post ${post.id} - Edit functionality not implemented yet`)}
-                className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md">
-                Edit
-              </button>
-            )}
-            <button className="p-2 hover:bg-gray-100 rounded-full">
-              <MoreHorizontal className="w-5 h-5 text-gray-400" />
-            </button>
+            <PostDropdownMenu
+              postId={post.id}
+              authorId={post.authorId}
+              currentUserId={currentUser?.id || ''}
+              isPinned={false}
+              theme={defaultTheme}
+              onEdit={currentUser?.id === post.authorId && onEditPost ? () => {
+                onClose();
+                onEditPost(post);
+              } : undefined}
+              onDelete={currentUser?.id === post.authorId ? () => {
+                if (confirm('Are you sure you want to delete this post?')) {
+                  // TODO: Implement delete functionality
+                  alert('Delete functionality not implemented yet');
+                }
+              } : undefined}
+              onCopyLink={() => {
+                const postUrl = `${window.location.origin}/post/${post.id}`;
+                navigator.clipboard.writeText(postUrl);
+                alert('Post link copied to clipboard!');
+              }}
+              onChangeCategory={() => {
+                alert('Change category feature coming soon!');
+              }}
+              onPinToFeed={() => {
+                alert('Pin to feed feature coming soon!');
+              }}
+              onPinToCoursePage={() => {
+                alert('Pin to course page feature coming soon!');
+              }}
+              onToggleComments={() => {
+                alert('Toggle comments feature coming soon!');
+              }}
+              onReport={() => {
+                alert('Report feature coming soon!');
+              }}
+            />
             <button 
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-full"

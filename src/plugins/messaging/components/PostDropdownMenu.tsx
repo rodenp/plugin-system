@@ -106,9 +106,7 @@ export const PostDropdownMenu: React.FC<PostDropdownMenuProps> = ({
           justifyContent: 'center',
           cursor: 'pointer',
           color: theme.colors.textSecondary,
-          transition: 'all 0.2s',
-          opacity: 0,
-          visibility: 'hidden'
+          transition: 'all 0.2s'
         }}
         className="post-menu-button"
       >
