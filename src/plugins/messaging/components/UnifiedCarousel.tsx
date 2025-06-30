@@ -19,7 +19,6 @@ interface Attachment {
 
 interface UnifiedCarouselProps {
   attachments?: Attachment[]
-  videoUrl?: string
   pollData?: { options: string[], votes?: number[] }
   content?: string
   theme: any
@@ -27,18 +26,23 @@ interface UnifiedCarouselProps {
   isFullScreen?: boolean
   onClose?: () => void
   initialIndex?: number
+  editMode?: boolean
+  onDeleteAttachment?: (attachmentId: string) => void
+  onAddAttachment?: () => void
 }
 
 export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({ 
   attachments = [],
-  videoUrl,
   pollData,
   content = '',
   theme,
   type,
   isFullScreen = false,
   onClose,
-  initialIndex = 0
+  initialIndex = 0,
+  editMode = false,
+  onDeleteAttachment,
+  onAddAttachment
 }) => {
   // Build media items array first to check if we should render
   const mediaItems: MediaItem[] = []
@@ -54,14 +58,7 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
     })
   }
   
-  // Add video
-  if (videoUrl) {
-    mediaItems.push({
-      id: 'video',
-      type: 'video',
-      data: { url: videoUrl }
-    })
-  }
+  // Videos are now handled as attachments with type 'video/url'
 
   // Extract GIFs from content
   if (content) {
@@ -91,8 +88,9 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
     }
   }
 
+  // In edit mode, always show the carousel (even if empty) to display the add button
   // Early return if no media items - BEFORE any hooks
-  if (mediaItems.length === 0) return null
+  if (mediaItems.length === 0 && !editMode) return null
 
   // All hooks must come after early return check
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex)
@@ -128,7 +126,7 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
     }, 50)
     
     return () => clearTimeout(timeoutId)
-  }, [attachments?.length, videoUrl, pollData?.options?.join(','), type])
+  }, [attachments?.length, pollData?.options?.join(','), type])
 
   const currentItem = mediaItems[currentIndex]
 
@@ -185,7 +183,7 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
     }, 10)
     
     return () => clearTimeout(timeoutId)
-  }, [attachments?.length, videoUrl, pollData?.options?.join(','), type])
+  }, [attachments?.length, pollData?.options?.join(','), type])
 
   // Cleanup arrows when component unmounts
   React.useEffect(() => {
@@ -319,6 +317,11 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
           )
         }
         
+        // Handle video URL attachments
+        if (attachment.type === 'video/url') {
+          return renderVideoEmbed(attachment.preview)
+        }
+        
         if (isPreviewableImage(attachment.type)) {
           return (
             <img
@@ -378,8 +381,7 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
           )
         }
       
-      case 'video':
-        return renderVideoEmbed(item.data.url)
+      // Videos are now handled as attachments with type 'video/url'
       
       case 'gif':
         return (
@@ -603,7 +605,7 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
         `}
       </style>
       <div 
-        key={`carousel-${attachments?.length || 0}-${videoUrl || ''}-${type}`}
+        key={`carousel-${attachments?.length || 0}-${type}`}
         ref={scrollContainerRef}
         style={{ 
           display: 'flex',
@@ -659,49 +661,150 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
           >
             {renderMediaItem(item, index)}
             
-            {/* Expand button - appears on hover */}
+            {editMode ? (
+              /* Delete button in edit mode */
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (onDeleteAttachment) {
+                    if (item.type === 'attachment') {
+                      onDeleteAttachment(item.data.id)
+                    } else if (item.type === 'video') {
+                      onDeleteAttachment(item.id)
+                    }
+                  }
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: '1',
+                  zIndex: 1,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            ) : (
+              /* Expand button - appears on hover */
+              <button
+                className="expand-btn"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setCurrentIndex(index)
+                  setIsExpanded(true)
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: 'white',
+                  color: '#333',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: '0',
+                  transition: 'opacity 0.2s ease',
+                  zIndex: 1,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                }}
+              >
+                {/* Custom expand arrows - pointing to top-right and bottom-left */}
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  {/* Top-right arrow */}
+                  <path d="M10 3h3v3M13 3l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  {/* Bottom-left arrow */}
+                  <path d="M6 13H3v-3M3 13l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        ))}
+        
+        {/* Add button in edit mode */}
+        {editMode && onAddAttachment && (
+          <div 
+            style={{
+              flexShrink: 0,
+              height: getImageHeight(),
+              width: (type === 'post-feed' || type === 'post-detail') ? '200px' : '120px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative'
+            }}
+          >
             <button
-              className="expand-btn"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                setCurrentIndex(index)
-                setIsExpanded(true)
+                onAddAttachment()
               }}
               onMouseDown={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
               }}
               style={{
-                position: 'absolute',
-                top: '8px',
-                right: '8px',
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                backgroundColor: 'white',
-                color: '#333',
-                border: 'none',
-                cursor: 'pointer',
+                border: `2px dashed ${theme.borders.borderColor}`,
+                borderRadius: theme.borders.borderRadius,
+                backgroundColor: theme.colors.surface,
+                height: getImageHeight(),
+                width: (type === 'post-feed' || type === 'post-detail') ? '200px' : '120px',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                opacity: '0',
-                transition: 'opacity 0.2s ease',
-                zIndex: 1,
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                color: theme.colors.textSecondary
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = theme.colors.secondary
+                e.currentTarget.style.backgroundColor = theme.colors.surfaceAlt
+                e.currentTarget.style.color = theme.colors.secondary
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = theme.borders.borderColor
+                e.currentTarget.style.backgroundColor = theme.colors.surface
+                e.currentTarget.style.color = theme.colors.textSecondary
               }}
             >
-              {/* Custom expand arrows - pointing to top-right and bottom-left */}
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                {/* Top-right arrow */}
-                <path d="M10 3h3v3M13 3l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                {/* Bottom-left arrow */}
-                <path d="M6 13H3v-3M3 13l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <div style={{ fontSize: (type === 'post-feed' || type === 'post-detail') ? '32px' : '24px', marginBottom: '8px' }}>
+                +
+              </div>
+              <div style={{ fontSize: (type === 'post-feed' || type === 'post-detail') ? '14px' : '12px', fontWeight: 500 }}>
+                Add Media
+              </div>
             </button>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Navigation arrows for regular view */}
@@ -803,7 +906,6 @@ export const UnifiedCarousel: React.FC<UnifiedCarouselProps> = ({
       {isExpanded && ReactDOM.createPortal(
         <UnifiedCarousel
           attachments={attachments}
-          videoUrl={videoUrl}
           pollData={pollData}
           content={content}
           theme={theme}

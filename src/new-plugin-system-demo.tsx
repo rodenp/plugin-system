@@ -57,12 +57,13 @@ const DemoContent: React.FC = () => {
       comments: 8,
       isPinned: false,
       level: 6,
+      lastCommentAt: '2024-12-28T15:45:00.000Z',
       commenters: [
-        { initials: 'MJ', avatarUrl: null },
-        { initials: 'EC', avatarUrl: null },
-        { initials: 'RS', avatarUrl: null },
-        { initials: 'AH', avatarUrl: null },
-        { initials: 'TB', avatarUrl: null }
+        { initials: 'MJ', avatarUrl: null, userId: 'user_mj', commentDate: '2024-12-28T15:45:00.000Z' },
+        { initials: 'EC', avatarUrl: null, userId: 'user_ec', commentDate: '2024-12-28T15:30:00.000Z' },
+        { initials: 'RS', avatarUrl: null, userId: 'user_rs', commentDate: '2024-12-28T15:15:00.000Z' },
+        { initials: 'AH', avatarUrl: null, userId: 'user_ah', commentDate: '2024-12-28T15:00:00.000Z' },
+        { initials: 'TB', avatarUrl: null, userId: 'user_tb', commentDate: '2024-12-28T14:45:00.000Z' }
       ]
     },
     { 
@@ -78,9 +79,9 @@ const DemoContent: React.FC = () => {
       isPinned: true,
       level: 3,
       commenters: [
-        { initials: 'LS', avatarUrl: null },
-        { initials: 'AK', avatarUrl: null },
-        { initials: 'JD', avatarUrl: null }
+        { initials: 'LS', avatarUrl: null, userId: 'user_ls', commentDate: '2024-12-28T13:30:00.000Z' },
+        { initials: 'AK', avatarUrl: null, userId: 'user_ak', commentDate: '2024-12-28T13:15:00.000Z' },
+        { initials: 'JD', avatarUrl: null, userId: 'user_jd', commentDate: '2024-12-28T13:00:00.000Z' }
       ]
     },
     { 
@@ -95,12 +96,38 @@ const DemoContent: React.FC = () => {
       comments: 15,
       isPinned: false,
       level: 9,
+      pollData: {
+        title: 'How many comments do you expect?',
+        options: [
+          '1 - 99 comments',
+          '100 - 249 comments', 
+          '250 - 499 comments',
+          '500 - 999 comments',
+          'Over 1,000 comments! ⭐'
+        ],
+        votes: [4, 0, 0, 1, 0],
+        userVote: 0, // Current user voted for option 0
+        optionVoters: [
+          [
+            { name: 'John', avatar: null },
+            { name: 'Mary', avatar: null },
+            { name: 'Sarah', avatar: null },
+            { name: 'Mike', avatar: null }
+          ],
+          [],
+          [],
+          [
+            { name: 'Alex', avatar: null }
+          ],
+          []
+        ]
+      },
       commenters: [
-        { initials: 'JW', avatarUrl: null },
-        { initials: 'BA', avatarUrl: null },
-        { initials: 'SC', avatarUrl: null },
-        { initials: 'LM', avatarUrl: null },
-        { initials: 'HK', avatarUrl: null }
+        { initials: 'JW', avatarUrl: null, userId: 'user_jw', commentDate: new Date(Date.now() - 5 * 60 * 1000).toISOString() },
+        { initials: 'BA', avatarUrl: null, userId: 'user_ba', commentDate: new Date(Date.now() - 10 * 60 * 1000).toISOString() },
+        { initials: 'SC', avatarUrl: null, userId: 'user_sc', commentDate: new Date(Date.now() - 15 * 60 * 1000).toISOString() },
+        { initials: 'LM', avatarUrl: null, userId: 'user_lm', commentDate: new Date(Date.now() - 20 * 60 * 1000).toISOString() },
+        { initials: 'HK', avatarUrl: null, userId: 'user_hk', commentDate: new Date(Date.now() - 25 * 60 * 1000).toISOString() }
       ]
     },
     {
@@ -3494,10 +3521,39 @@ const DemoContent: React.FC = () => {
       }
     }
     
-    // Update the comment count for the specific post
-    const updatedPosts = posts.map((post: any) => 
-      post.id === postId ? { ...post, comments: (post.comments || 0) + 1 } : post
-    );
+    // Update the comment count, lastCommentAt timestamp, and commenters array for the specific post
+    const updatedPosts = posts.map((post: any) => {
+      if (post.id === postId) {
+        // Get existing commenters
+        const existingCommenters = post.commenters || [];
+        
+        // Create new commenter object
+        const newCommenter = {
+          initials: mockUser.profile.displayName.split(' ').map((n: string) => n[0]).join(''),
+          avatarUrl: mockUser.profile.avatar || null,
+          name: mockUser.profile.displayName,
+          userId: mockUser.id,
+          commentDate: new Date().toISOString()
+        };
+        
+        // Remove existing entry for this user if they've commented before
+        const filteredCommenters = existingCommenters.filter((c: any) => c.userId !== mockUser.id);
+        
+        // Add new commenter at the beginning (most recent)
+        const updatedCommenters = [newCommenter, ...filteredCommenters];
+        
+        // Keep only the most recent 5 commenters
+        const recentCommenters = updatedCommenters.slice(0, 5);
+        
+        return {
+          ...post,
+          comments: (post.comments || 0) + 1,
+          lastCommentAt: new Date().toISOString(),
+          commenters: recentCommenters
+        };
+      }
+      return post;
+    });
     setPosts(updatedPosts);
     
     // Save posts to storage
@@ -3588,9 +3644,9 @@ const DemoContent: React.FC = () => {
           postUpdates.pollData = mediaData;
         }
         
-        // Handle attachments
-        if (mediaData.attachments && mediaData.attachments.length > 0) {
-          postUpdates.attachments = mediaData.attachments;
+        // Handle attachments - always set attachments if mediaData includes them
+        if (mediaData.attachments !== undefined) {
+          postUpdates.attachments = mediaData.attachments.length > 0 ? mediaData.attachments : undefined;
         }
       }
 
@@ -3660,6 +3716,72 @@ const DemoContent: React.FC = () => {
     } catch (error) {
       console.error('Error deleting post:', error);
       showWarning('Delete Failed', 'Failed to delete post. Please try again.');
+    }
+  };
+
+  // Pin post handler
+  const handlePinPost = async (postId: string) => {
+    try {
+      const post = posts.find(p => p.id === postId);
+      if (!post) {
+        showWarning('Pin Failed', 'Post not found.');
+        return;
+      }
+
+      // Check if current user is the author
+      if (post.authorId !== (mockUser?.id || 'anonymous')) {
+        showWarning('Pin Failed', 'You can only pin your own posts.');
+        return;
+      }
+
+      const newPinnedState = !post.isPinned;
+      const updatedPosts = posts.map((p: any) => 
+        p.id === postId ? { ...p, isPinned: newPinnedState } : p
+      );
+      
+      setPosts(updatedPosts);
+      await savePostsToStorage(updatedPosts);
+      
+      showSuccess(
+        newPinnedState ? 'Post Pinned!' : 'Post Unpinned!', 
+        newPinnedState ? 'Post has been pinned to the top of the feed.' : 'Post has been unpinned from the feed.'
+      );
+    } catch (error) {
+      console.error('Error pinning/unpinning post:', error);
+      showWarning('Pin Failed', 'Failed to update post pin status. Please try again.');
+    }
+  };
+
+  // Toggle comments handler
+  const handleToggleCommentsForPost = async (postId: string) => {
+    try {
+      const post = posts.find(p => p.id === postId);
+      if (!post) {
+        showWarning('Update Failed', 'Post not found.');
+        return;
+      }
+
+      // Check if current user is the author
+      if (post.authorId !== (mockUser?.id || 'anonymous')) {
+        showWarning('Update Failed', 'You can only modify comment settings for your own posts.');
+        return;
+      }
+
+      const newCommentsDisabled = !post.commentsDisabled;
+      const updatedPosts = posts.map((p: any) => 
+        p.id === postId ? { ...p, commentsDisabled: newCommentsDisabled } : p
+      );
+      
+      setPosts(updatedPosts);
+      await savePostsToStorage(updatedPosts);
+      
+      showSuccess(
+        newCommentsDisabled ? 'Comments Disabled!' : 'Comments Enabled!', 
+        newCommentsDisabled ? 'Comments have been turned off for this post.' : 'Comments have been turned on for this post.'
+      );
+    } catch (error) {
+      console.error('Error toggling comments:', error);
+      showWarning('Update Failed', 'Failed to update comment settings. Please try again.');
     }
   };
 
@@ -3819,7 +3941,7 @@ const DemoContent: React.FC = () => {
   };
 
   // Comment edit and delete handlers
-  const handleEditComment = async (commentId: string, newContent: string) => {
+  const handleEditComment = async (commentId: string, newContent: string, mediaData?: any) => {
     try {
       // Find which post contains this comment and update it
       for (const post of posts) {
@@ -3863,12 +3985,25 @@ const DemoContent: React.FC = () => {
           }
 
           // Update the comment
-          comments[commentIndex] = {
+          const updatedComment = {
             ...comment,
             content: newContent,
             isEdited: true,
             updatedAt: new Date().toISOString()
           };
+          
+          // Handle media data updates if provided
+          if (mediaData) {
+            // Clear existing media fields
+            updatedComment.attachments = undefined;
+            
+            // Set new media data
+            if (mediaData.attachments && mediaData.attachments.length > 0) {
+              updatedComment.attachments = mediaData.attachments;
+            }
+          }
+          
+          comments[commentIndex] = updatedComment;
           
           // Save back to storage
           if (storageBackend === 'localStorage') {
@@ -5454,6 +5589,8 @@ const DemoContent: React.FC = () => {
               onUnlikeComment: handleUnlikeComment,
               onEditComment: handleEditComment,
               onDeleteComment: handleDeleteComment,
+              onPinPost: handlePinPost,
+              onToggleCommentsForPost: handleToggleCommentsForPost,
               onLoadMore: async () => {
                 // Simulated load more functionality
                 console.log('Load more posts...');

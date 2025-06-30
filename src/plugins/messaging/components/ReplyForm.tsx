@@ -40,11 +40,6 @@ export const ReplyForm: React.FC<ReplyFormProps> = ({
       let mediaData: any = null
       if (mediaType === 'video' && videoUrl.trim()) {
         mediaData = { type: 'video', url: videoUrl.trim() }
-      } else if (mediaType === 'poll') {
-        const validOptions = pollOptions.filter(opt => opt.trim())
-        if (validOptions.length >= 2) {
-          mediaData = { type: 'poll', options: validOptions }
-        }
       }
 
       // Add attachments to media data
@@ -154,7 +149,7 @@ export const ReplyForm: React.FC<ReplyFormProps> = ({
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-3">
+    <div className="space-y-3">
       <div className="flex space-x-3">
         {/* User avatar */}
         <div className="flex-shrink-0">
@@ -174,32 +169,39 @@ export const ReplyForm: React.FC<ReplyFormProps> = ({
           </div>
         </div>
 
-        {/* Form */}
+        {/* Single container with text, carousel, and toolbar */}
         <div className="flex-1">
-          <form onSubmit={handleSubmit}>
-            <RichTextArea
-              ref={textareaRef}
-              value={content}
-              onChange={setContent}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              rows={1}
-              style={{
-                width: '100%',
-                resize: 'none',
-                border: '0',
-                backgroundColor: '#f9fafb',
-                borderRadius: '0.5rem',
-                padding: '0.5rem 0.75rem',
-                fontSize: '0.875rem',
-                minHeight: '36px',
-                maxHeight: '120px',
-                outline: 'none'
-              }}
-            />
-            
-            {/* UnifiedToolbar */}
-            <div className="mt-2">
+          <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 space-y-3">
+            <form onSubmit={handleSubmit}>
+              <RichTextArea
+                ref={textareaRef}
+                value={content}
+                onChange={setContent}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder}
+                rows={1}
+                style={{
+                  width: '100%',
+                  resize: 'none',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  borderRadius: '0',
+                  padding: '0',
+                  fontSize: '0.875rem',
+                  minHeight: '36px',
+                  maxHeight: '120px',
+                  outline: 'none'
+                }}
+              />
+              
+              {/* Carousel inside the container - only show if there's content */}
+              {(attachments.length > 0 || videoUrl) && (
+                <div className="mt-3">
+                  {/* UnifiedCarousel would go here if we want to show existing media */}
+                </div>
+              )}
+              
+              {/* UnifiedToolbar inside the container */}
               <UnifiedToolbar
                 theme={defaultTheme}
                 content={content}
@@ -217,18 +219,32 @@ export const ReplyForm: React.FC<ReplyFormProps> = ({
                 setAttachments={setAttachments}
                 onFileUpload={handleFileUpload}
                 compact={true}
-                showSubmit={true}
-                submitLabel="Post"
-                onSubmit={handleSubmit}
-                onCancel={onCancel}
-                isSubmitting={isSubmitting}
-                placeholder="Write a reply..."
+                showSubmit={false}
+                type="reply"
               />
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
-
+      
+      {/* Save/Cancel buttons outside the container */}
+      <div className="flex gap-2 justify-end ml-11">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-gray-600 font-medium hover:text-gray-800"
+          >
+            CANCEL
+          </button>
+        )}
+        <button
+          onClick={handleSubmit}
+          disabled={!content.trim() || isSubmitting}
+          className="px-4 py-2 bg-gray-300 text-black font-medium rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? 'SAVING...' : 'SAVE'}
+        </button>
+      </div>
     </div>
   )
 }

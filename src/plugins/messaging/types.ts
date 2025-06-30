@@ -210,7 +210,7 @@ export interface PostDetailModalProps {
   onAddComment: (postId: string, content: string, parentId?: string, mediaData?: any) => Promise<void>;
   onLikeComment: (commentId: string) => Promise<void>;
   onUnlikeComment: (commentId: string) => Promise<void>;
-  onEditComment?: (commentId: string, newContent: string) => Promise<void>;
+  onEditComment?: (commentId: string, newContent: string, mediaData?: any) => Promise<void>;
   onDeleteComment?: (commentId: string) => Promise<void>;
 }
 
@@ -221,9 +221,10 @@ export interface CommentItemProps {
   onLike: (commentId: string) => Promise<void>;
   onUnlike: (commentId: string) => Promise<void>;
   onReply: (content: string, parentId: string, mediaData?: any) => Promise<void>;
-  onEdit?: (commentId: string, newContent: string) => Promise<void>;
+  onEdit?: (commentId: string, newContent: string, mediaData?: any) => Promise<void>;
   onDelete?: (commentId: string) => Promise<void>;
   maxDepth?: number;
+  commentsDisabled?: boolean;
 }
 
 export interface ReplyFormProps {

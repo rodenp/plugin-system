@@ -61,10 +61,33 @@ export const RichTextArea = React.forwardRef<HTMLDivElement, RichTextAreaProps>(
       return text
     }
     
-    // Convert [text](url) to <a> tags with inline styles
-    return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, 
+    let processedText = text
+    
+    // First, convert [text](url) to <a> tags with inline styles
+    processedText = processedText.replace(/\[([^\]]+)\]\(([^)]+)\)/g, 
       '<a href="$2" style="color: #0066cc; text-decoration: underline; cursor: pointer;" contenteditable="false">$1</a>'
     )
+    
+    // Then, convert raw URLs to clickable links (but not ones already inside markdown links)
+    const urlRegex = /(https?:\/\/(?:[-\w.])+(?::[0-9]+)?(?:\/(?:[\w/_.])*)?(?:\?(?:[\w&=%.])*)?(?:#(?:[\w.])*)?)/g
+    processedText = processedText.replace(urlRegex, (match, url) => {
+      // Check if this URL is already inside an <a> tag
+      const beforeMatch = processedText.substring(0, processedText.indexOf(match))
+      const afterMatch = processedText.substring(processedText.indexOf(match) + match.length)
+      
+      // Simple check: if there's an unclosed <a tag before and </a> after, skip
+      const openTagsBefore = (beforeMatch.match(/<a[^>]*>/g) || []).length
+      const closeTagsBefore = (beforeMatch.match(/<\/a>/g) || []).length
+      const closeTagsAfter = (afterMatch.match(/<\/a>/g) || []).length
+      
+      if (openTagsBefore > closeTagsBefore && closeTagsAfter > 0) {
+        return match // Don't convert, it's already inside a link
+      }
+      
+      return `<a href="${url}" style="color: #0066cc; text-decoration: underline; cursor: pointer;" contenteditable="false">${url}</a>`
+    })
+    
+    return processedText
   }
 
   // Convert HTML back to markdown
@@ -138,24 +161,35 @@ export const RichTextArea = React.forwardRef<HTMLDivElement, RichTextAreaProps>(
   }
 
   return (
-    <div
-      ref={editableRef}
-      contentEditable
-      onInput={handleInput}
-      onPaste={handlePaste}
-      onKeyDown={handleKeyDown}
-      onFocus={onFocus}
-      onBlur={onBlur}
-      style={{
-        ...style,
-        minHeight: `${rows * 1.5}em`,
-        whiteSpace: 'pre-wrap',
-        wordWrap: 'break-word',
-        outline: 'none',
-        overflow: 'auto'
-      }}
-      suppressContentEditableWarning={true}
-      data-placeholder={!value ? placeholder : ''}
-    />
+    <>
+      <style>
+        {`
+          [contenteditable][data-placeholder]:not(:focus):empty::before {
+            content: attr(data-placeholder);
+            color: #9ca3af;
+            pointer-events: none;
+          }
+        `}
+      </style>
+      <div
+        ref={editableRef}
+        contentEditable
+        onInput={handleInput}
+        onPaste={handlePaste}
+        onKeyDown={handleKeyDown}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        style={{
+          ...style,
+          minHeight: `${rows * 1.5}em`,
+          whiteSpace: 'pre-wrap',
+          wordWrap: 'break-word',
+          outline: 'none',
+          overflow: 'auto'
+        }}
+        suppressContentEditableWarning={true}
+        data-placeholder={!value ? placeholder : ''}
+      />
+    </>
   )
 })

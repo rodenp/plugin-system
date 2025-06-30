@@ -6,6 +6,7 @@ interface PostDropdownMenuProps {
   authorId: string
   currentUserId: string
   isPinned: boolean
+  commentsDisabled?: boolean
   onEdit?: () => void
   onDelete?: () => void
   onCopyLink?: () => void
@@ -22,6 +23,7 @@ export const PostDropdownMenu: React.FC<PostDropdownMenuProps> = ({
   authorId,
   currentUserId,
   isPinned,
+  commentsDisabled = false,
   onEdit,
   onDelete,
   onCopyLink,
@@ -200,7 +202,7 @@ export const PostDropdownMenu: React.FC<PostDropdownMenuProps> = ({
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.colors.surfaceAlt}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
-              Turn off comments
+              {commentsDisabled ? 'Turn on comments' : 'Turn off comments'}
             </button>
           )}
 

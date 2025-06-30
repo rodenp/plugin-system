@@ -6,6 +6,7 @@ import { ReplyForm } from './ReplyForm'
 import { ContentRenderer } from './ContentRenderer'
 import { UnifiedCarousel } from './UnifiedCarousel'
 import { RichTextArea } from './RichTextArea'
+import { UnifiedToolbar } from './UnifiedToolbar'
 
 export const CommentItem: React.FC<CommentItemProps> = ({
   comment,
@@ -15,7 +16,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   onReply,
   onEdit,
   onDelete,
-  maxDepth = 3
+  maxDepth = 3,
+  commentsDisabled = false
 }) => {
   const [showReplyForm, setShowReplyForm] = React.useState(false)
   // Always show replies by default, let user hide them if needed
@@ -23,6 +25,15 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const [showAllReplies, setShowAllReplies] = React.useState(false)
   const [isEditing, setIsEditing] = React.useState(false)
   const [editContent, setEditContent] = React.useState(comment.content)
+  const [showDropdown, setShowDropdown] = React.useState(false)
+  const [editAttachments, setEditAttachments] = React.useState<Array<{id: string, file: File, preview: string}>>([])
+  const [editVideoUrl, setEditVideoUrl] = React.useState('')
+  const [editLinkUrl, setEditLinkUrl] = React.useState('')
+
+  // Toolbar state for edit mode
+  const [editMediaType, setEditMediaType] = React.useState<string>('none')
+  const [editPollOptions, setEditPollOptions] = React.useState<string[]>(['', ''])
+  const editContentRef = React.useRef<HTMLDivElement>(null)
 
   const handleLikeComment = async () => {
     try {
@@ -36,7 +47,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
     }
   }
 
-  const handleReply = async (content: string, parentId?: string, mediaData?: any) => {
+  const handleReply = async (content: string, _parentId?: string, mediaData?: any) => {
     try {
       await onReply(content, comment.id, mediaData)  // Pass media data to onReply
       setShowReplyForm(false)
@@ -47,23 +58,150 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
   const handleStartEdit = () => {
     setEditContent(comment.content)
+    
+    // Initialize edit attachments with current comment attachments
+    if ((comment as any).attachments) {
+      const convertedAttachments = (comment as any).attachments.map((att: any) => ({
+        id: att.id,
+        file: new File([], att.name || 'file', { type: att.type || 'application/octet-stream' }),
+        preview: att.preview || ''
+      }))
+      setEditAttachments(convertedAttachments)
+    } else {
+      setEditAttachments([])
+    }
+    
+    // Initialize video and link URLs
+    setEditVideoUrl(comment.videoUrl || '')
+    setEditLinkUrl(comment.linkUrl || '')
+    
+    // Initialize media type based on comment content
+    if (comment.videoUrl) {
+      setEditMediaType('video')
+    } else if ((comment as any).pollData) {
+      setEditMediaType('poll')
+      setEditPollOptions((comment as any).pollData.options || ['', ''])
+    } else {
+      setEditMediaType('none')
+    }
+    
     setIsEditing(true)
   }
 
   const handleCancelEdit = () => {
     setEditContent(comment.content)
+    setEditAttachments([])
+    setEditVideoUrl('')
+    setEditLinkUrl('')
+    setEditMediaType('none')
+    setEditPollOptions(['', ''])
     setIsEditing(false)
   }
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement> | any) => {
+    // Handle GIF attachment from toolbar
+    if (event.gifAttachment) {
+      setEditAttachments(prev => [...prev, event.gifAttachment])
+      return
+    }
+    
+    const files = event.target.files
+    if (!files) return
+
+    Array.from(files as FileList).forEach((file: File) => {
+      const maxSize = 2 * 1024 * 1024 // 2MB limit
+      if (file.size > maxSize) {
+        alert(`File "${file.name}" is too large. Maximum size is 2MB.`)
+        return
+      }
+
+      const id = `att_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+      const reader = new FileReader()
+      
+      reader.onload = (e) => {
+        const preview = e.target?.result as string
+        
+        if (file.type.startsWith('image/')) {
+          const img = new Image()
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+            
+            const maxDimension = 300
+            let { width, height } = img
+            
+            if (width > height) {
+              if (width > maxDimension) {
+                height = (height * maxDimension) / width
+                width = maxDimension
+              }
+            } else {
+              if (height > maxDimension) {
+                width = (width * maxDimension) / height
+                height = maxDimension
+              }
+            }
+            
+            canvas.width = width
+            canvas.height = height
+            
+            ctx?.drawImage(img, 0, 0, width, height)
+            const compressedPreview = canvas.toDataURL('image/jpeg', 0.7)
+            
+            setEditAttachments(prev => [...prev, { id, file, preview: compressedPreview }])
+          }
+          img.src = preview
+        } else {
+          setEditAttachments(prev => [...prev, { id, file, preview }])
+        }
+      }
+      
+      reader.readAsDataURL(file)
+    })
+
+    event.target.value = ''
+  }
+
   const handleSaveEdit = async () => {
-    if (!editContent.trim() || editContent === comment.content) {
-      handleCancelEdit()
+    if (!editContent.trim()) {
+      alert('Comment cannot be empty.')
       return
     }
 
     try {
       if (onEdit) {
-        await onEdit(comment.id, editContent.trim())
+        // Create media data for the comment edit
+        let mediaData: any = {}
+        
+        // Set media type based on what content exists
+        if (editMediaType === 'poll') {
+          const validOptions = editPollOptions.filter(opt => opt.trim())
+          if (validOptions.length >= 2) {
+            mediaData.type = 'poll'
+            mediaData.options = validOptions
+          }
+        }
+
+        // Always include attachments in media data (even if empty array)
+        mediaData.attachments = editAttachments.map(att => ({
+          id: att.id,
+          name: att.file.name,
+          size: att.file.size,
+          type: att.file.type,
+          preview: att.preview
+        }))
+        
+        await onEdit(comment.id, editContent.trim(), mediaData)
+        
+        // Update the comment object with new data (for immediate UI sync)
+        Object.assign(comment, {
+          content: editContent.trim(),
+          attachments: mediaData.attachments.length > 0 ? mediaData.attachments : undefined,
+          pollData: editMediaType === 'poll' ? { options: editPollOptions.filter(opt => opt.trim()) } : undefined,
+          isEdited: true,
+          updatedAt: new Date()
+        })
+        
         setIsEditing(false)
       }
     } catch (error) {
@@ -100,7 +238,9 @@ export const CommentItem: React.FC<CommentItemProps> = ({
     })
   }
 
-  const canReply = comment.depth < maxDepth
+  // Limit to 3 levels: Post (1) → Comment (2) → Reply (3)
+  // Only allow replies to level 0 (top-level comments), not to level 1 (replies)
+  const canReply = comment.depth === 0
   const hasReplies = comment.replies && comment.replies.length > 0
   
 
@@ -138,78 +278,233 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
         {/* Comment content */}
         <div className="flex-1 min-w-0">
-          <div className="bg-gray-50 rounded-2xl px-4 py-3">
-            <div className="flex items-center space-x-2 mb-1">
-              <span className="font-semibold text-sm text-gray-900">
-                {comment.authorName}
-              </span>
-              <span className="text-xs text-gray-500">
-                {formatTimeAgo(comment.createdAt)}
-              </span>
-            </div>
-            
-            <div className="text-sm text-gray-700">
-              {isEditing ? (
-                <div className="space-y-3">
-                  <RichTextArea
-                    value={editContent}
-                    onChange={setEditContent}
-                    placeholder="Edit your comment..."
-                    rows={3}
-                    style={{
-                      width: '100%',
-                      resize: 'none',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.5rem',
-                      padding: '0.5rem 0.75rem',
-                      fontSize: '0.875rem',
-                      fontFamily: 'inherit',
-                      outline: 'none',
-                      backgroundColor: '#ffffff'
-                    }}
-                  />
+          <div className="bg-gray-50 rounded-2xl px-4 py-3 relative">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center space-x-2">
+                <span className="font-semibold text-sm text-gray-900">
+                  {comment.authorName}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {formatTimeAgo(comment.createdAt)}
+                </span>
+              </div>
+              
+              {/* 3-dot menu - only show for comment author */}
+              {currentUser?.id === comment.authorId && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-200"
+                  >
+                    <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                  </button>
+                  
+                  {showDropdown && (
+                    <>
+                      {/* Backdrop to close dropdown */}
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={() => setShowDropdown(false)}
+                      />
+                      {/* Dropdown menu */}
+                      <div className="absolute right-0 top-8 z-20 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-32">
+                        <button
+                          onClick={() => {
+                            handleStartEdit()
+                            setShowDropdown(false)
+                          }}
+                          className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleDelete()
+                            setShowDropdown(false)
+                          }}
+                          className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-              ) : (
-                <ContentRenderer content={comment.content} theme={defaultTheme} excludeGifs={true} />
               )}
             </div>
             
-            {/* All media in unified carousel */}
-            <div className="mt-3">
-              <UnifiedCarousel
-                key={`comment-carousel-${comment.id}`}
-                attachments={(comment as any).attachments}
-                videoUrl={comment.videoUrl}
-                pollData={(comment as any).pollData}
-                content={comment.content}
-                theme={defaultTheme}
-                type="comment"
-              />
-            </div>
-            
-            {/* Link preview (separate from media carousel) */}
-            {comment.linkUrl && (
-              <div className="mt-3">
-                <a
-                  href={comment.linkUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors group max-w-md"
-                >
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
-                      <Link className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                        External Link
-                      </div>
-                      <div className="text-xs text-gray-500 truncate mt-0.5">
-                        {comment.linkUrl}
-                      </div>
-                    </div>
+            {isEditing ? (
+              /* Edit mode - single rounded container with text, carousel, and toolbar */
+              <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 space-y-3">
+                <RichTextArea
+                  ref={editContentRef}
+                  value={editContent}
+                  onChange={setEditContent}
+                  placeholder="Edit your comment..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    resize: 'none',
+                    border: 'none',
+                    borderRadius: '0',
+                    padding: '0',
+                    fontSize: '0.875rem',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    backgroundColor: 'transparent'
+                  }}
+                />
+                
+                {/* Carousel inside the container - only show if there's content */}
+                {editAttachments.length > 0 && (
+                  <UnifiedCarousel
+                    key={`comment-carousel-${comment.id}-edit`}
+                    attachments={editAttachments.map(att => ({
+                      id: att.id,
+                      name: att.file.name,
+                      size: att.file.size,
+                      type: att.file.type,
+                      preview: att.preview
+                    }))}
+                    pollData={undefined}
+                    content={editContent}
+                    theme={defaultTheme}
+                    type="comment"
+                    editMode={true}
+                    onDeleteAttachment={(attachmentId: string) => {
+                      setEditAttachments(prev => prev.filter(att => att.id !== attachmentId));
+                    }}
+                    onAddAttachment={() => {
+                      // Trigger file input for comment carousel
+                      const input = document.createElement('input')
+                      input.type = 'file'
+                      input.multiple = true
+                      input.accept = 'image/*,video/*,.pdf,.doc,.docx,.txt'
+                      input.onchange = (event) => {
+                        const files = (event.target as HTMLInputElement).files
+                        if (!files) return
+
+                        Array.from(files).forEach((file: File) => {
+                          const maxSize = 2 * 1024 * 1024 // 2MB limit
+                          if (file.size > maxSize) {
+                            alert(`File "${file.name}" is too large. Maximum size is 2MB.`)
+                            return
+                          }
+
+                          const id = `att_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+                          const reader = new FileReader()
+                          
+                          reader.onload = (e) => {
+                            const preview = e.target?.result as string
+                            
+                            if (file.type.startsWith('image/')) {
+                              const img = new Image()
+                              img.onload = () => {
+                                const canvas = document.createElement('canvas')
+                                const ctx = canvas.getContext('2d')
+                                
+                                const maxDimension = 300
+                                let { width, height } = img
+                                
+                                if (width > height) {
+                                  if (width > maxDimension) {
+                                    height = (height * maxDimension) / width
+                                    width = maxDimension
+                                  }
+                                } else {
+                                  if (height > maxDimension) {
+                                    width = (width * maxDimension) / height
+                                    height = maxDimension
+                                  }
+                                }
+                                
+                                canvas.width = width
+                                canvas.height = height
+                                
+                                ctx?.drawImage(img, 0, 0, width, height)
+                                const compressedPreview = canvas.toDataURL('image/jpeg', 0.7)
+                                
+                                setEditAttachments(prev => [...prev, { id, file, preview: compressedPreview }])
+                              }
+                              img.src = preview
+                            } else {
+                              setEditAttachments(prev => [...prev, { id, file, preview }])
+                            }
+                          }
+                          
+                          reader.readAsDataURL(file)
+                        })
+
+                        // Reset input
+                        input.value = ''
+                      }
+                      input.click()
+                    }}
+                  />
+                )}
+                
+                {/* UnifiedToolbar inside the container */}
+                <UnifiedToolbar
+                  theme={defaultTheme}
+                  content={editContent}
+                  setContent={setEditContent}
+                  contentRef={editContentRef}
+                  linkUrl={editLinkUrl}
+                  setLinkUrl={setEditLinkUrl}
+                  videoUrl={editVideoUrl}
+                  setVideoUrl={setEditVideoUrl}
+                  mediaType={editMediaType}
+                  setMediaType={setEditMediaType}
+                  pollOptions={editPollOptions}
+                  setPollOptions={setEditPollOptions}
+                  attachments={editAttachments}
+                  setAttachments={setEditAttachments}
+                  onFileUpload={handleFileUpload}
+                  compact={true}
+                  showSubmit={false}
+                  hideAttachments={true}
+                  type="comment"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="text-sm text-gray-700">
+                  <ContentRenderer content={comment.content} theme={defaultTheme} excludeGifs={true} />
+                </div>
+                
+                {/* View mode carousel - only show if there's content */}
+                {(comment as any).attachments?.length > 0 && (
+                  <div className="mt-3">
+                    <UnifiedCarousel
+                      key={`comment-carousel-${comment.id}-view`}
+                      attachments={(comment as any).attachments}
+                      pollData={undefined}
+                      content={comment.content}
+                      theme={defaultTheme}
+                      type="comment"
+                      editMode={false}
+                    />
                   </div>
-                </a>
+                )}
+              </>
+            )}
+            
+            {/* Save/Cancel buttons for edit mode - positioned outside the container */}
+            {isEditing && (
+              <div className="flex gap-2 mt-3 justify-end">
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-4 py-2 text-gray-600 font-medium hover:text-gray-800"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={!editContent.trim()}
+                  className="px-4 py-2 bg-gray-300 text-black font-medium rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  SAVE
+                </button>
               </div>
             )}
           </div>
@@ -232,7 +527,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               )}
             </button>
             
-            {canReply && (
+            {canReply && !commentsDisabled && (
               <button
                 onClick={() => setShowReplyForm(!showReplyForm)}
                 className="text-xs text-gray-500 hover:text-gray-700 font-medium transition-colors"
@@ -241,39 +536,10 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               </button>
             )}
             
-            {currentUser?.id === comment.authorId && !isEditing && (
-              <>
-                <button 
-                  onClick={handleStartEdit}
-                  className="opacity-0 group-hover:opacity-100 text-xs text-gray-500 hover:text-gray-700 font-medium transition-opacity">
-                  Edit
-                </button>
-                <button 
-                  onClick={handleDelete}
-                  className="opacity-0 group-hover:opacity-100 text-xs text-red-500 hover:text-red-700 font-medium transition-opacity">
-                  Delete
-                </button>
-              </>
-            )}
-            
-            {isEditing && (
-              <>
-                <button 
-                  onClick={handleSaveEdit}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                  Save
-                </button>
-                <button 
-                  onClick={handleCancelEdit}
-                  className="text-xs text-gray-500 hover:text-gray-700 font-medium">
-                  Cancel
-                </button>
-              </>
-            )}
           </div>
 
           {/* Reply form */}
-          {showReplyForm && (
+          {showReplyForm && !commentsDisabled && (
             <div className="mt-3 ml-2">
               <ReplyForm
                 parentId={comment.id}
@@ -315,6 +581,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
                       onEdit={onEdit}
                       onDelete={onDelete}
                       maxDepth={maxDepth}
+                      commentsDisabled={commentsDisabled}
                     />
                   ))}
                   

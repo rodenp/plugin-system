@@ -20,13 +20,57 @@ interface Post {
   likes: number
   comments: number
   isPinned: boolean
+  commentsDisabled?: boolean
   createdAt: string
   level?: number
   videoUrl?: string
   linkUrl?: string
   attachments?: Array<{ id: string; name: string; size: number; type: string; preview: string }>
   commenters?: Array<{ avatarUrl?: string; initials: string; name?: string }>
-  newCommentTimeAgo?: string
+  newCommentTimeAgo?: string | null
+}
+
+// Poll component for post feed - discrete display
+const PostPoll: React.FC<{
+  pollData: any
+  theme: any
+  currentUser: any
+  onVote?: (optionIndex: number) => void
+}> = ({ pollData, theme, currentUser, onVote }) => {
+  if (!pollData || !pollData.options) return null
+  
+  const totalVotes = pollData.votes ? pollData.votes.reduce((sum: number, count: number) => sum + count, 0) : 0
+  
+  // Simple horizontal layout matching the screenshots exactly
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.sm
+    }}>
+      <div style={{
+        backgroundColor: theme.colors.secondary,
+        color: 'white',
+        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+        borderRadius: '20px',
+        fontSize: theme.font.sizeSm,
+        fontWeight: '500'
+      }}>
+        Poll
+      </div>
+      <div style={{
+        color: theme.colors.secondary,
+        fontSize: theme.font.sizeMd,
+        fontWeight: '500'
+      }}>
+        {totalVotes > 0 
+          ? `${totalVotes} member${totalVotes !== 1 ? 's' : ''} have voted`
+          : 'Cast your vote'
+        }
+      </div>
+    </div>
+  )
 }
 
 // PostCard component - exact copy from community-copy
@@ -39,7 +83,10 @@ const PostCard: React.FC<{
   onLikePost: (postId: string) => void
   onEditPost?: (postId: string) => void
   onDeletePost?: (postId: string) => void
-}> = ({ post, selectedPost, theme, currentUser, onToggleSelect, onLikePost, onEditPost, onDeletePost }) => (
+  onPinPost?: (postId: string) => void
+  onToggleComments?: (postId: string) => void
+  onVotePoll?: (postId: string, optionIndex: number) => void
+}> = ({ post, selectedPost, theme, currentUser, onToggleSelect, onLikePost, onEditPost, onDeletePost, onPinPost, onToggleComments, onVotePoll }) => (
   <div
     className="post-card"
     style={{
@@ -101,45 +148,26 @@ const PostCard: React.FC<{
           authorId={post.authorId}
           currentUserId={currentUser?.id || ''}
           isPinned={post.isPinned}
-          theme={theme}
-          onEdit={currentUser?.id === post.authorId && onEditPost ? () => onEditPost(post.id) : undefined}
-          onDelete={currentUser?.id === post.authorId && onDeletePost ? () => {
-            if (confirm('Are you sure you want to delete this post?')) {
-              onDeletePost(post.id)
-            }
-          } : undefined}
+          commentsDisabled={post.commentsDisabled}
+          onEdit={() => onEditPost?.(post.id)}
+          onDelete={() => onDeletePost?.(post.id)}
           onCopyLink={() => {
-            // Copy post link to clipboard
-            const postUrl = `${window.location.origin}/post/${post.id}`;
-            navigator.clipboard.writeText(postUrl);
-            alert('Post link copied to clipboard!');
+            const url = `${window.location.origin}${window.location.pathname}?post=${post.id}`
+            navigator.clipboard.writeText(url).then(() => {
+              console.log('Link copied to clipboard')
+            }).catch(() => {
+              console.log('Failed to copy link')
+            })
           }}
-          onChangeCategory={() => {
-            // TODO: Implement category change
-            alert('Change category feature coming soon!');
-          }}
-          onPinToFeed={() => {
-            // TODO: Implement pin/unpin
-            alert('Pin to feed feature coming soon!');
-          }}
-          onPinToCoursePage={() => {
-            // TODO: Implement pin to course
-            alert('Pin to course page feature coming soon!');
-          }}
-          onToggleComments={() => {
-            // TODO: Implement toggle comments
-            alert('Toggle comments feature coming soon!');
-          }}
-          onReport={() => {
-            // TODO: Implement report
-            alert('Report feature coming soon!');
-          }}
+          onPinToFeed={() => onPinPost?.(post.id)}
+          onToggleComments={() => onToggleComments?.(post.id)}
+          theme={theme}
         />
       </div>
     </div>
 
     {/* Content */}
-    <div style={{ marginBottom: theme.spacing.md }}>
+    <div style={{ marginBottom: theme.spacing.xs }}>
       {post.title && (
         <div style={{ fontWeight: 600, fontSize: theme.font.sizeMd, marginBottom: theme.spacing.sm }}>
           {post.title}
@@ -214,11 +242,20 @@ const PostCard: React.FC<{
         </div>
       )}
       
+      {/* Poll component - show before carousel */}
+      {(post as any).pollData && (
+        <PostPoll
+          pollData={(post as any).pollData}
+          theme={theme}
+          currentUser={currentUser}
+          onVote={(optionIndex: number) => onVotePoll?.(post.id, optionIndex)}
+        />
+      )}
+      
       {/* All media in unified carousel */}
       <UnifiedCarousel
         key={`feed-carousel-${post.id}`}
         attachments={post.attachments}
-        videoUrl={post.videoUrl}
         pollData={(post as any).pollData}
         content={post.content}
         theme={theme}
@@ -232,7 +269,7 @@ const PostCard: React.FC<{
       alignItems: 'center', 
       fontSize: theme.font.sizeMd, 
       color: theme.colors.textSecondary, 
-      marginBottom: theme.spacing.md 
+      marginBottom: theme.spacing.xs 
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md }}>
         <button
@@ -254,38 +291,40 @@ const PostCard: React.FC<{
         <span>💬 {post.comments || 0}</span>
       </div>
 
-      <div style={{ display: 'flex', marginLeft: theme.spacing.lg, gap: theme.spacing.xs }}>
-        {post.commenters?.slice(0, 5).map((user, idx) => (
-            <div key={idx} style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '999px',
-              backgroundColor: theme.colors.surfaceAlt,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              border: `2px solid ${theme.colors.surface}`,
-              fontSize: '14px',
-              fontWeight: 600
-            }}>
-              {user.avatarUrl
-                ? <img src={user.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '999px' }} />
-                : user.initials || '?'}
-            </div>
-          ))}
+      <div style={{ display: 'flex', alignItems: 'center', marginLeft: theme.spacing.lg, gap: theme.spacing.sm }}>
+        <div style={{ display: 'flex', gap: theme.spacing.xs }}>
+          {post.commenters?.slice(0, 5).map((user, idx) => (
+              <div key={idx} style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '999px',
+                backgroundColor: theme.colors.surfaceAlt,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                border: `2px solid ${theme.colors.surface}`,
+                fontSize: '14px',
+                fontWeight: 600
+              }}>
+                {user.avatarUrl
+                  ? <img src={user.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '999px' }} />
+                  : user.initials || '?'}
+              </div>
+            ))}
         </div>
+        
+        {/* Last comment time ago - next to avatars */}
+        {post.newCommentTimeAgo && (
+          <div style={{
+            fontSize: theme.font.sizeSm,
+            color: theme.colors.secondary,
+            fontWeight: 500
+          }}>
+            Last comment {post.newCommentTimeAgo} ago
+          </div>
+        )}
       </div>
-
-    {/* New comment time ago */}
-    {post.newCommentTimeAgo && (
-      <div style={{
-        fontSize: theme.font.sizeSm,
-        color: theme.colors.secondary,
-        fontWeight: 500
-      }}>
-        New comment {post.newCommentTimeAgo}
       </div>
-    )}
   </div>
 )
 
@@ -304,8 +343,10 @@ export const MessagingDemo: React.FC<PluginProps & {
   onLoadComments?: (postId: string) => Promise<any[]>
   onLikeComment?: (commentId: string) => Promise<void>
   onUnlikeComment?: (commentId: string) => Promise<void>
-  onEditComment?: (commentId: string, newContent: string) => Promise<void>
+  onEditComment?: (commentId: string, newContent: string, mediaData?: any) => Promise<void>
   onDeleteComment?: (commentId: string) => Promise<void>
+  onPinPost?: (postId: string) => Promise<void>
+  onToggleCommentsForPost?: (postId: string) => Promise<void>
   onLoadMore?: () => Promise<void>
   onRefresh?: () => Promise<void>
 }> = ({
@@ -328,6 +369,8 @@ export const MessagingDemo: React.FC<PluginProps & {
   onUnlikeComment,
   onEditComment,
   onDeleteComment,
+  onPinPost,
+  onToggleCommentsForPost,
   onLoadMore,
   onRefresh,
   theme
@@ -344,21 +387,53 @@ export const MessagingDemo: React.FC<PluginProps & {
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
   const [editingPost, setEditingPost] = React.useState<any>(null)
   const [loadingComments, setLoadingComments] = React.useState(false)
+  const [, forceUpdate] = React.useReducer(x => x + 1, 0)
 
-  // Use posts directly from props
+  // Calculate time ago helper function
+  const calculateTimeAgo = (timestamp: string | Date | undefined) => {
+    if (!timestamp) return null
+    
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+    
+    if (diffInSeconds < 60) return 'just now'
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d`
+    
+    return null // Don't show after a week
+  }
+
+  // Use posts directly from props with calculated newCommentTimeAgo
   const allPosts = React.useMemo(() => {
-    return posts.map(post => ({
-      ...post,
-      likedByUser: userLikes?.has(post.id) || false
-    }))
+    return posts.map(post => {
+      // Get the most recent comment time from either lastCommentAt or the first commenter
+      let mostRecentCommentTime = (post as any).lastCommentAt
+      if (!mostRecentCommentTime && post.commenters && post.commenters.length > 0) {
+        // Use the first commenter's date (most recent) if lastCommentAt is not set
+        mostRecentCommentTime = (post.commenters[0] as any).commentDate
+      }
+      
+      return {
+        ...post,
+        likedByUser: userLikes?.has(post.id) || false,
+        newCommentTimeAgo: calculateTimeAgo(mostRecentCommentTime)
+      }
+    })
   }, [posts, userLikes])
 
-  // Filter posts based on category and sort by most recent first
+  // Filter posts based on category and sort by pinned status first, then by most recent
   const filteredPosts = React.useMemo(() => {
     let posts = filterCategory === 'all' ? allPosts : allPosts.filter((post: Post) => post.category === filterCategory)
     
-    // Sort by creation date descending (most recent first)
+    // Sort by pinned status first (pinned posts at top), then by creation date descending within each group
     return posts.sort((a, b) => {
+      // If one is pinned and the other isn't, prioritize the pinned one
+      if (a.isPinned && !b.isPinned) return -1
+      if (!a.isPinned && b.isPinned) return 1
+      
+      // If both have same pinned status, sort by creation date descending (most recent first)
       const dateA = new Date(a.createdAt || a.postDate || 0)
       const dateB = new Date(b.createdAt || b.postDate || 0)
       return dateB.getTime() - dateA.getTime()
@@ -428,6 +503,119 @@ export const MessagingDemo: React.FC<PluginProps & {
       alert('Error editing post. Please try again.')
     }
   }, [onEditPost, handleCloseEditModal])
+
+  const handlePinPost = React.useCallback(async (postId: string) => {
+    try {
+      if (onPinPost) {
+        await onPinPost(postId)
+        
+        // Refresh modal post if it's the same post
+        if (modalPost && modalPost.id === postId) {
+          setModalPost(prev => prev ? {
+            ...prev,
+            isPinned: !prev.isPinned
+          } as any : null)
+        }
+      }
+    } catch (error) {
+      console.error('[Messaging] Error pinning/unpinning post:', error)
+      alert('Error updating post pin status. Please try again.')
+    }
+  }, [onPinPost, modalPost])
+
+  const handleToggleCommentsForPost = React.useCallback(async (postId: string) => {
+    try {
+      if (onToggleCommentsForPost) {
+        await onToggleCommentsForPost(postId)
+        
+        // Refresh modal post if it's the same post
+        if (modalPost && modalPost.id === postId) {
+          setModalPost(prev => prev ? {
+            ...prev,
+            commentsDisabled: !(prev as any).commentsDisabled
+          } as any : null)
+        }
+      }
+    } catch (error) {
+      console.error('[Messaging] Error toggling comments:', error)
+      alert('Error updating comment settings. Please try again.')
+    }
+  }, [onToggleCommentsForPost, modalPost])
+
+  const handleVotePoll = React.useCallback(async (postId: string, optionIndex: number) => {
+    try {
+      console.log(`Voting on post ${postId}, option ${optionIndex}`)
+      
+      // Update the modal post immediately to show user's vote
+      if (modalPost && modalPost.id === postId) {
+        const updatedPost = { ...modalPost } as any
+        
+        // Handle vote change or new vote
+        if (updatedPost.pollData) {
+          const oldVote = updatedPost.pollData.userVote
+          
+          // Update vote counts
+          if (oldVote !== undefined) {
+            // User is changing their vote
+            if (updatedPost.pollData.votes) {
+              updatedPost.pollData.votes[oldVote] = Math.max(0, updatedPost.pollData.votes[oldVote] - 1)
+              updatedPost.pollData.votes[optionIndex] = (updatedPost.pollData.votes[optionIndex] || 0) + 1
+            }
+          } else {
+            // User is casting their first vote
+            if (!updatedPost.pollData.votes) {
+              updatedPost.pollData.votes = new Array(updatedPost.pollData.options.length).fill(0)
+            }
+            updatedPost.pollData.votes[optionIndex] = (updatedPost.pollData.votes[optionIndex] || 0) + 1
+          }
+          
+          // Set user's vote
+          updatedPost.pollData.userVote = optionIndex
+        }
+        
+        setModalPost(updatedPost)
+      }
+      
+      // In a real app, this would call a backend API
+      // await onVotePoll(postId, optionIndex)
+      
+    } catch (error) {
+      console.error('[Messaging] Error voting on poll:', error)
+      alert('Error casting vote. Please try again.')
+    }
+  }, [modalPost])
+
+  const handleRemoveVote = React.useCallback(async (postId: string) => {
+    try {
+      console.log(`Removing vote from post ${postId}`)
+      
+      // Update the modal post immediately to remove user's vote
+      if (modalPost && modalPost.id === postId) {
+        const updatedPost = { ...modalPost } as any
+        
+        if (updatedPost.pollData && updatedPost.pollData.userVote !== undefined) {
+          const userVote = updatedPost.pollData.userVote
+          
+          // Decrease vote count
+          if (updatedPost.pollData.votes && updatedPost.pollData.votes[userVote] > 0) {
+            updatedPost.pollData.votes[userVote] = updatedPost.pollData.votes[userVote] - 1
+          }
+          
+          // Remove user's vote
+          delete updatedPost.pollData.userVote
+        }
+        
+        setModalPost(updatedPost)
+      }
+      
+      // In a real app, this would call a backend API
+      // await onRemoveVote(postId)
+      
+    } catch (error) {
+      console.error('[Messaging] Error removing vote:', error)
+      alert('Error removing vote. Please try again.')
+    }
+  }, [modalPost])
 
   const handleLikePost = React.useCallback(async (postId: string) => {
     try {
@@ -603,13 +791,13 @@ export const MessagingDemo: React.FC<PluginProps & {
     }
   }, [onUnlikeComment, modalPost, onLoadComments])
 
-  const handleModalEditComment = React.useCallback(async (commentId: string, newContent: string) => {
+  const handleModalEditComment = React.useCallback(async (commentId: string, newContent: string, mediaData?: any) => {
     try {
-      console.log('[Messaging] handleModalEditComment called with:', commentId, newContent);
+      console.log('[Messaging] handleModalEditComment called with:', commentId, newContent, mediaData);
       
       if (onEditComment) {
         console.log('[Messaging] Calling onEditComment...');
-        await onEditComment(commentId, newContent);
+        await onEditComment(commentId, newContent, mediaData);
         console.log('[Messaging] onEditComment completed');
         
         // Reload comments to show updated content
@@ -712,7 +900,7 @@ export const MessagingDemo: React.FC<PluginProps & {
       </div>
 
       {/* Posts list - exact same as community-copy */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: appliedTheme.spacing.md }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: appliedTheme.spacing.sm }}>
         {filteredPosts.map((post: Post) => (
           <PostCard 
             key={post.id} 
@@ -729,6 +917,9 @@ export const MessagingDemo: React.FC<PluginProps & {
               }
             }}
             onDeletePost={onDeletePost}
+            onPinPost={handlePinPost}
+            onToggleComments={handleToggleCommentsForPost}
+            onVotePoll={handleVotePoll}
           />
         ))}
         {filteredPosts.length === 0 && (
@@ -786,7 +977,11 @@ export const MessagingDemo: React.FC<PluginProps & {
         onEditComment={handleModalEditComment}
         onDeleteComment={handleModalDeleteComment}
         loadingComments={loadingComments}
-        onEditPost={handleOpenEditModal}
+        onEditPost={handleEditPost}
+        onPinPost={handlePinPost}
+        onToggleComments={handleToggleCommentsForPost}
+        onVotePoll={handleVotePoll}
+        onRemoveVote={handleRemoveVote}
       />
 
       {/* Create Post Modal */}
