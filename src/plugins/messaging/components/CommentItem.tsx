@@ -16,7 +16,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   onReply,
   onEdit,
   onDelete,
-  maxDepth = 3,
+  maxDepth,
   commentsDisabled = false
 }) => {
   const [showReplyForm, setShowReplyForm] = React.useState(false)
@@ -35,12 +35,22 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const [editPollOptions, setEditPollOptions] = React.useState<string[]>(['', ''])
   const editContentRef = React.useRef<HTMLDivElement>(null)
 
+  // Fix depth calculation for replies in the replies array
+  // Replies in the replies array should have depth = parent.depth + 1
+  const fixedComment = {
+    ...comment,
+    replies: (comment.replies || []).map(reply => ({
+      ...reply,
+      depth: comment.depth + 1
+    }))
+  };
+
   const handleLikeComment = async () => {
     try {
-      if (comment.likedByUser) {
-        await onUnlike(comment.id)
+      if (fixedComment.likedByUser) {
+        await onUnlike(fixedComment.id)
       } else {
-        await onLike(comment.id)
+        await onLike(fixedComment.id)
       }
     } catch (error) {
       console.error('Error toggling comment like:', error)
@@ -49,7 +59,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
   const handleReply = async (content: string, _parentId?: string, mediaData?: any) => {
     try {
-      await onReply(content, comment.id, mediaData)  // Pass media data to onReply
+      await onReply(content, fixedComment.id, mediaData)  // Pass media data to onReply
+      console.log(`DEBUG:CommentItem:handleReply:Reply added successfully, content=${content}, parentId=${fixedComment.id}, mediaData=${JSON.stringify(mediaData)})`)
       setShowReplyForm(false)
     } catch (error) {
       console.error('Error adding reply:', error)
@@ -57,11 +68,11 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   }
 
   const handleStartEdit = () => {
-    setEditContent(comment.content)
+    setEditContent(fixedComment.content)
     
     // Initialize edit attachments with current comment attachments
-    if ((comment as any).attachments) {
-      const convertedAttachments = (comment as any).attachments.map((att: any) => ({
+    if ((fixedComment as any).attachments) {
+      const convertedAttachments = (fixedComment as any).attachments.map((att: any) => ({
         id: att.id,
         file: new File([], att.name || 'file', { type: att.type || 'application/octet-stream' }),
         preview: att.preview || ''
@@ -72,15 +83,15 @@ export const CommentItem: React.FC<CommentItemProps> = ({
     }
     
     // Initialize video and link URLs
-    setEditVideoUrl(comment.videoUrl || '')
-    setEditLinkUrl(comment.linkUrl || '')
+    setEditVideoUrl(fixedComment.videoUrl || '')
+    setEditLinkUrl(fixedComment.linkUrl || '')
     
     // Initialize media type based on comment content
-    if (comment.videoUrl) {
+    if (fixedComment.videoUrl) {
       setEditMediaType('video')
-    } else if ((comment as any).pollData) {
+    } else if ((fixedComment as any).pollData) {
       setEditMediaType('poll')
-      setEditPollOptions((comment as any).pollData.options || ['', ''])
+      setEditPollOptions((fixedComment as any).pollData.options || ['', ''])
     } else {
       setEditMediaType('none')
     }
@@ -89,7 +100,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   }
 
   const handleCancelEdit = () => {
-    setEditContent(comment.content)
+    setEditContent(fixedComment.content)
     setEditAttachments([])
     setEditVideoUrl('')
     setEditLinkUrl('')
@@ -238,11 +249,15 @@ export const CommentItem: React.FC<CommentItemProps> = ({
     })
   }
 
-  // Limit to 3 levels: Post (1) → Comment (2) → Reply (3)
-  // Only allow replies to level 0 (top-level comments), not to level 1 (replies)
-  const canReply = comment.depth === 0
-  const hasReplies = comment.replies && comment.replies.length > 0
-  
+  // Limit replies: only allow replies to comments with depth 0 or 1
+  // depth 0 = top-level comment on a post
+  // depth 1 = first-level reply to a comment
+  // depth 2+ = no more replies allowed (to prevent deep nesting)
+  const canReply = fixedComment.depth < 2
+  const hasReplies = fixedComment.replies && fixedComment.replies.length > 0
+
+  console.log(`DEBUG:CommentItem:original=${JSON.stringify(comment)}`)
+  console.log(`DEBUG:CommentItem:fixed=${JSON.stringify(fixedComment)}`)
 
   return (
     <div className="group">
@@ -254,23 +269,23 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold"
               style={{ backgroundColor: defaultTheme.colors.surfaceAlt }}
             >
-              {comment.authorAvatar ? (
+              {fixedComment.authorAvatar ? (
                 <img 
-                  src={comment.authorAvatar} 
-                  alt={comment.authorName}
+                  src={fixedComment.authorAvatar} 
+                  alt={fixedComment.authorName}
                   className="w-full h-full rounded-full object-cover"
                 />
               ) : (
-                (comment.authorName || 'U').charAt(0).toUpperCase()
+                (fixedComment.authorName || 'U').charAt(0).toUpperCase()
               )}
             </div>
             
-            {comment.authorLevel && (
+            {fixedComment.authorLevel && (
               <div 
                 className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-xs text-white font-bold"
                 style={{ backgroundColor: defaultTheme.colors.secondary }}
               >
-                {comment.authorLevel}
+                {fixedComment.authorLevel}
               </div>
             )}
           </div>
@@ -282,15 +297,15 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center space-x-2">
                 <span className="font-semibold text-sm text-gray-900">
-                  {comment.authorName}
+                  {fixedComment.authorName}
                 </span>
                 <span className="text-xs text-gray-500">
-                  {formatTimeAgo(comment.createdAt)}
+                  {formatTimeAgo(fixedComment.createdAt)}
                 </span>
               </div>
               
               {/* 3-dot menu - only show for comment author */}
-              {currentUser?.id === comment.authorId && (
+              {currentUser?.id === fixedComment.authorId && (
                 <div className="relative">
                   <button
                     onClick={() => setShowDropdown(!showDropdown)}
@@ -469,17 +484,17 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             ) : (
               <>
                 <div className="text-sm text-gray-700">
-                  <ContentRenderer content={comment.content} theme={defaultTheme} excludeGifs={true} />
+                  <ContentRenderer content={fixedComment.content} theme={defaultTheme} excludeGifs={true} />
                 </div>
                 
                 {/* View mode carousel - only show if there's content */}
-                {(comment as any).attachments?.length > 0 && (
+                {(fixedComment as any).attachments?.length > 0 && (
                   <div className="mt-3">
                     <UnifiedCarousel
-                      key={`comment-carousel-${comment.id}-view`}
-                      attachments={(comment as any).attachments}
+                      key={`comment-carousel-${fixedComment.id}-view`}
+                      attachments={(fixedComment as any).attachments}
                       pollData={undefined}
-                      content={comment.content}
+                      content={fixedComment.content}
                       theme={defaultTheme}
                       type="comment"
                       editMode={false}
@@ -514,16 +529,16 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             <button
               onClick={handleLikeComment}
               className={`flex items-center space-x-1 text-xs transition-colors ${
-                comment.likedByUser 
+                fixedComment.likedByUser 
                   ? 'text-blue-600' 
                   : 'text-gray-500 hover:text-blue-600'
               }`}
             >
               <ThumbsUp 
-                className={`w-3 h-3 ${comment.likedByUser ? 'fill-current' : ''}`}
+                className={`w-3 h-3 ${fixedComment.likedByUser ? 'fill-current' : ''}`}
               />
-              {comment.likes > 0 && (
-                <span className="font-medium">{comment.likes}</span>
+              {fixedComment.likes > 0 && (
+                <span className="font-medium">{fixedComment.likes}</span>
               )}
             </button>
             
@@ -542,12 +557,12 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           {showReplyForm && !commentsDisabled && (
             <div className="mt-3 ml-2">
               <ReplyForm
-                parentId={comment.id}
-                postId={comment.postId}
+                parentId={fixedComment.id}
+                postId={fixedComment.postId}
                 currentUser={currentUser}
                 onSubmit={handleReply}
                 onCancel={() => setShowReplyForm(false)}
-                placeholder={`Reply to ${comment.authorName}...`}
+                placeholder={`Reply to ${fixedComment.authorName}...`}
               />
             </div>
           )}
@@ -562,7 +577,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
                   className="flex items-center space-x-1 text-xs text-gray-500 hover:text-gray-700 font-medium mb-3 ml-2"
                 >
                   <MessageCircle className="w-3 h-3" />
-                  <span>View {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}</span>
+                  <span>View {fixedComment.replies.length} {fixedComment.replies.length === 1 ? 'reply' : 'replies'}</span>
                 </button>
               )}
               
@@ -570,7 +585,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               {showReplies && (
                 <div className="space-y-3 border-l-2 border-gray-100 pl-4 ml-2">
                   {/* Show first 2 replies or all if showAllReplies is true */}
-                  {(showAllReplies ? comment.replies : comment.replies.slice(0, 2)).map((reply) => (
+                  {(showAllReplies ? fixedComment.replies : fixedComment.replies.slice(0, 2)).map((reply) => (
                     <CommentItem
                       key={reply.id}
                       comment={reply}
@@ -580,23 +595,23 @@ export const CommentItem: React.FC<CommentItemProps> = ({
                       onReply={onReply}
                       onEdit={onEdit}
                       onDelete={onDelete}
-                      maxDepth={maxDepth}
+                      maxDepth={2}
                       commentsDisabled={commentsDisabled}
                     />
                   ))}
                   
                   {/* Show "View x more replies" if there are more than 2 replies and not showing all */}
-                  {comment.replies.length > 2 && !showAllReplies && (
+                  {fixedComment.replies.length > 2 && !showAllReplies && (
                     <button
                       onClick={() => setShowAllReplies(true)}
                       className="text-xs text-blue-600 hover:text-blue-800 font-medium ml-2"
                     >
-                      View {comment.replies.length - 2} more {comment.replies.length - 2 === 1 ? 'reply' : 'replies'}
+                      View {fixedComment.replies.length - 2} more {fixedComment.replies.length - 2 === 1 ? 'reply' : 'replies'}
                     </button>
                   )}
                   
                   {/* Show hide button only if there are multiple replies */}
-                  {comment.replies.length > 1 && (
+                  {fixedComment.replies.length > 1 && (
                     <button
                       onClick={() => {
                         setShowReplies(false)
