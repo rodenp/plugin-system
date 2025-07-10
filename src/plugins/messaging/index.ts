@@ -9,12 +9,12 @@ import { ContentRenderer } from './components/ContentRenderer';
 import { UnifiedCarousel } from './components/UnifiedCarousel';
 import { AttachmentDownloadModal } from './components/AttachmentDownloadModal';
 import { PostDropdownMenu } from './components/PostDropdownMenu';
-import { MessagingDemo } from './MessagingDemo';
+import { Messaging } from './Messaging';
 
 export const messagingPlugin: Plugin = {
   id: 'messaging',
   name: 'Messaging',
-  component: MessagingDemo,
+  component: Messaging,
   dependencies: [], // No dependencies
   icon: '💬',
   order: 1,
@@ -32,7 +32,7 @@ export const messagingPlugin: Plugin = {
         UnifiedCarousel,
         AttachmentDownloadModal,
         PostDropdownMenu,
-        MessagingFeedComponent: MessagingDemo, // Export the feed component for community plugin
+        MessagingFeedComponent: Messaging, // Export the feed component for community plugin
       }
     });
     console.log('🔌 Messaging plugin initialized with service registry');
@@ -48,4 +48,4 @@ export type { MessagingComponents } from './useMessagingComponent';
 
 // Export types
 export * from './types';
-export { MessageService } from './message-service';
+//export { MessageService } from './message-service';

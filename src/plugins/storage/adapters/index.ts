@@ -12,8 +12,11 @@ import { MemoryAdapter } from './MemoryAdapter';
 import { PostgreSQLAdapter } from './PostgreSQLAdapter';
 
 export function createStorageAdapter(config: BackendConfig): StorageBackend {
+  console.log('🏭 createStorageAdapter called with config:', config);
+  
   switch (config.type) {
     case 'indexeddb':
+      console.log(`🏭 Creating IndexedDBAdapter with database: "${config.database}"`);
       return new IndexedDBAdapter(config.database, config.options?.version);
       
     case 'memory':
@@ -53,6 +56,7 @@ export function createStorageAdapter(config: BackendConfig): StorageBackend {
 export function isIndexedDBAdapter(adapter: StorageBackend): adapter is IndexedDBAdapter {
   return adapter.type === 'indexeddb';
 }
+
 
 export function isMemoryAdapter(adapter: StorageBackend): adapter is MemoryAdapter {
   return adapter.type === 'memory';
@@ -179,6 +183,7 @@ export function getAdapterPerformanceProfile(adapterType: string): AdapterPerfor
       fullTextSearch: false,
       optimalFor: ['browser_apps', 'offline_support', 'client_storage', 'pwas']
     },
+    
     
     postgresql: {
       readPerformance: 'high',

@@ -44,7 +44,7 @@ class PluginRegistry {
     console.log(`🔌 Plugin registered: ${plugin.name} (${plugin.id})`);
   }
 
-  install(pluginId: string): void {
+  async install(pluginId: string): Promise<void> {
     const plugin = this.plugins.get(pluginId);
     if (!plugin) {
       console.error(`❌ Plugin not found: ${pluginId}`);
@@ -61,7 +61,7 @@ class PluginRegistry {
           if (!this.plugins.has(depId)) {
             throw new Error(`Dependency '${depId}' required by '${pluginId}' is not registered. Make sure to register all dependencies before installing plugins.`);
           }
-          this.install(depId); // Recursive call to install dependency
+          await this.install(depId); // Recursive call to install dependency
         }
       }
     }
@@ -71,23 +71,35 @@ class PluginRegistry {
     // Call onInstall callback if provided
     if (plugin.onInstall) {
       try {
-        // Handle both sync and async onInstall callbacks
-        const result = plugin.onInstall();
-        if (result && typeof result.then === 'function') {
-          // It's a promise, wait for it
-          result.catch((error: any) => {
-            console.error(`❌ Error in async onInstall callback for ${pluginId}:`, error);
-          });
-        }
+        // Properly await async onInstall callbacks
+        await plugin.onInstall();
       } catch (error) {
         console.error(`❌ Error in onInstall callback for ${pluginId}:`, error);
+        // Remove from installed plugins if installation failed
+        this.installedPlugins.delete(pluginId);
+        throw error;
       }
     }
     
     console.log(`✅ Plugin installed: ${plugin.name} (${plugin.id})`);
   }
 
-  uninstall(pluginId: string): void {
+  async uninstall(pluginId: string): Promise<void> {
+    const plugin = this.plugins.get(pluginId);
+    if (!plugin) {
+      console.warn(`⚠️ Plugin not found for uninstall: ${pluginId}`);
+      return;
+    }
+
+    // Call onUninstall callback if provided
+    if (plugin.onUninstall) {
+      try {
+        await plugin.onUninstall();
+      } catch (error) {
+        console.error(`❌ Error in onUninstall callback for ${pluginId}:`, error);
+      }
+    }
+
     this.installedPlugins.delete(pluginId);
     console.log(`❌ Plugin uninstalled: ${pluginId}`);
   }
@@ -127,12 +139,12 @@ class PluginRegistry {
   }
 
   // Install multiple plugins at once
-  installMany(pluginIds: string[]): void {
+  async installMany(pluginIds: string[]): Promise<void> {
     // Sort by dependencies first
     const sortedIds = this.topologicalSort(pluginIds);
     
     for (const id of sortedIds) {
-      this.install(id);
+      await this.install(id);
     }
   }
 

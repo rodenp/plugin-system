@@ -65,8 +65,35 @@ export function usePluginService(
   const [service, setService] = useState<Function | null>(null);
   
   useEffect(() => {
+    // Check if service is immediately available
     const serviceFunc = pluginRegistry.getService(pluginId, serviceName);
-    setService(() => serviceFunc);
+    if (serviceFunc) {
+      console.log(`✅ Found service ${serviceName} in service registry for ${pluginId}`);
+      setService(() => serviceFunc);
+      return; // No cleanup needed when found immediately
+    }
+    
+    // Poll for service availability (plugins might load async)
+    const checkInterval = setInterval(() => {
+      const serviceFunc = pluginRegistry.getService(pluginId, serviceName);
+      if (serviceFunc) {
+        console.log(`✅ Found service ${serviceName} in service registry for ${pluginId}`);
+        setService(() => serviceFunc);
+        clearInterval(checkInterval);
+        clearTimeout(timeout); // Clear timeout when found
+      }
+    }, 100);
+    
+    // Cleanup after 5 seconds
+    const timeout = setTimeout(() => {
+      clearInterval(checkInterval);
+      console.warn(`⚠️ Service ${pluginId}.${serviceName} not found after 5s`);
+    }, 5000);
+    
+    return () => {
+      clearInterval(checkInterval);
+      clearTimeout(timeout);
+    };
   }, [pluginId, serviceName]);
   
   return service;

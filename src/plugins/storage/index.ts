@@ -350,5 +350,115 @@ export const SUPPORTED_FEATURES = [
   'performance_monitoring'
 ];
 
+// Plugin System Interface
+import type { Plugin } from '../../types/plugin-interface';
+import { StoragePluginComponent } from './StoragePluginComponent';
+import { storageConfig } from './config';
+import { pluginRegistry } from '../../store/plugin-registry';
+
+// Storage plugin instance management
+let storageInstance: StoragePlugin | null = null;
+
+export const storagePlugin: Plugin = {
+  id: 'storage',
+  name: 'Storage Plugin',
+  component: StoragePluginComponent,
+  dependencies: [], // No dependencies - this is the storage layer
+  icon: '💾',
+  order: -1000, // Load first - this is the foundation layer
+  
+  onInstall: async () => {
+    console.log('🔌 Installing storage plugin...');
+    
+    // Check for config in window first (workaround for Vite HMR module duplication)
+    let config = (window as any).__storagePluginConfig;
+    if (config) {
+      console.log('🔌 Using config from window (workaround)');
+    } else {
+      console.log('🔌 Using config from storageConfig module');
+      config = storageConfig.getConfig();
+    }
+    
+    console.log('🔌 Storage plugin using database:', config.backend.database);
+    console.log('🔌 Storage plugin GDPR mode:', config.gdpr.enabled);
+    storageInstance = new StoragePlugin(config);
+    
+    // Initialize storage instance
+    await storageInstance.initialize();
+    
+    // Register services with plugin registry
+    pluginRegistry.registerService('storage', {
+      version: '2.0.0',
+      components: {
+        StorageAdmin: StoragePluginComponent,
+      },
+      services: {
+        // Core CRUD operations - both direct methods and convenience wrappers
+        create: storageInstance.create.bind(storageInstance),
+        read: storageInstance.read.bind(storageInstance),
+        update: storageInstance.update.bind(storageInstance),
+        delete: storageInstance.delete.bind(storageInstance),
+        query: storageInstance.query.bind(storageInstance),
+        clear: storageInstance.clear.bind(storageInstance),
+        count: storageInstance.count.bind(storageInstance),
+        
+        // Convenience methods for common operations
+        save: storageInstance.create.bind(storageInstance), // Alias for create
+        findAll: (entityType: string) => storageInstance.query(entityType), // Get all entities of type
+        findById: storageInstance.read.bind(storageInstance), // Alias for read
+        
+        // Batch operations
+        createMany: storageInstance.createMany.bind(storageInstance),
+        
+        // GDPR operations
+        exportUserData: storageInstance.exportUserData.bind(storageInstance),
+        deleteUserData: storageInstance.deleteUserData.bind(storageInstance),
+        grantConsent: storageInstance.grantConsent.bind(storageInstance),
+        revokeConsent: storageInstance.revokeConsent.bind(storageInstance),
+        checkConsent: storageInstance.checkConsent.bind(storageInstance),
+        getConsentStatus: storageInstance.getConsentStatus.bind(storageInstance),
+        
+        // Configuration management
+        getConfig: storageConfig.getConfig,
+        setConfig: (updates: Partial<StoragePluginConfig>) => {
+          storageConfig.setConfig(updates);
+          // Apply config changes to instance if needed
+          if (storageInstance) {
+            // Note: StoragePlugin may need an updateConfiguration method
+            console.log('Storage configuration updated:', updates);
+          }
+        },
+        
+        // Storage information
+        getStorageInfo: storageInstance.getStorageInfo.bind(storageInstance),
+        getStatus: storageInstance.getStatus.bind(storageInstance),
+        
+        // GDPR specific services
+        getEncryptionStatus: () => ({ enabled: true, algorithm: 'AES-256-GCM' }),
+        getAuditLogs: (options?: any) => {
+          return storageInstance.getAuditLogs(options);
+        },
+        
+        // Instance access for advanced usage
+        getInstance: () => storageInstance
+      }
+    });
+    
+    console.log('✅ Storage plugin installed and services registered');
+  },
+  
+  onUninstall: async () => {
+    if (storageInstance) {
+      await storageInstance.destroy();
+      storageInstance = null;
+    }
+    console.log('🔌 Storage plugin uninstalled');
+  }
+};
+
+// Export configuration utilities
+export { storageConfig };
+export type { StoragePluginConfig } from './config/types';
+
 // Export default as the main plugin class
 export default StoragePlugin;

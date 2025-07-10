@@ -1455,7 +1455,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps & {
                         onReply={handleReplyToComment}
                         onEdit={onEditComment}
                         onDelete={onDeleteComment}
-                        maxDepth={3}
+                        maxDepth={2}
                         commentsDisabled={(post as any).commentsDisabled}
                       />
                     ))

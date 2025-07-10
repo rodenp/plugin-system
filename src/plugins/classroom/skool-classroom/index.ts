@@ -2,11 +2,11 @@
 import * as React from 'react';
 import type { Plugin, PluginProps } from '../../../types/plugin-interface';
 import { ClassroomComponent } from './ClassroomComponent';
-import { CourseProvider } from '../../../core/course-context';
 
-// Wrapper component that provides CourseProvider
-const ClassroomWithProvider: React.FC<PluginProps> = (props) => {
-  const groupname = props.currentUser?.profile?.groupname || 'courzey';
+// Direct component with URL management
+const ClassroomWithUrlManagement: React.FC<PluginProps> = (props) => {
+  // Use community slug or a default
+  const groupname = props.community?.slug || 'courzey';
   const pluginPath = `/${groupname}/classroom`;
   
   // Update document title and URL without causing page reload
@@ -17,18 +17,14 @@ const ClassroomWithProvider: React.FC<PluginProps> = (props) => {
     }
   }, [groupname, pluginPath]);
   
-  return React.createElement(
-    CourseProvider,
-    null,
-    React.createElement(ClassroomComponent, props)
-  );
+  return React.createElement(ClassroomComponent, props);
 };
 
 // Plugin definition
 export const classroomPlugin: Plugin = {
   id: 'classroom',
   name: 'Classroom', 
-  component: ClassroomWithProvider,
+  component: ClassroomWithUrlManagement,
   dependencies: ['course-builder'], // Depends on course-builder plugin
   icon: '',
   order: 2,

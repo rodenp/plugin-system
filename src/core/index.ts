@@ -1,5 +1,5 @@
 export * from './app-state';
-export * from './course-context';
+// export * from './course-context'; // Deprecated - plugins should use props-based pattern
 export * from './event-bus';
 export * from './plugin-aware-components';
 export * from './plugin-component-loader';

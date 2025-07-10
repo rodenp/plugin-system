@@ -256,9 +256,6 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const canReply = fixedComment.depth < 2
   const hasReplies = fixedComment.replies && fixedComment.replies.length > 0
 
-  console.log(`DEBUG:CommentItem:original=${JSON.stringify(comment)}`)
-  console.log(`DEBUG:CommentItem:fixed=${JSON.stringify(fixedComment)}`)
-
   return (
     <div className="group">
       <div className="flex space-x-3">

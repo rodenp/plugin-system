@@ -23,13 +23,13 @@ import {
   Trash2
 } from 'lucide-react';
 import type { Course } from '@/types/core';
+import { useCourse } from '@/core/course-context';
 
 interface CourseDetailsProps {
   course: Course;
   isOpen: boolean;
   onClose: () => void;
   onSave?: (updatedCourse: Course) => void;
-  onUpdateCourse?: (courseId: string, updates: Partial<Course>) => Promise<void>;
 }
 
 interface FormData {
@@ -64,7 +64,8 @@ interface FormData {
   discountPrice?: number;
 }
 
-export function CourseDetails({ course, isOpen, onClose, onSave, onUpdateCourse }: CourseDetailsProps) {
+export function CourseDetails({ course, isOpen, onClose, onSave }: CourseDetailsProps) {
+  const { updateCourse } = useCourse();
   const [formData, setFormData] = useState<FormData>({
     title: '',
     description: '',
@@ -172,9 +173,7 @@ export function CourseDetails({ course, isOpen, onClose, onSave, onUpdateCourse 
         ...(formData.maxStudents > 0 && { maxStudents: formData.maxStudents })
       } as Course;
 
-      if (onUpdateCourse) {
-        await onUpdateCourse(course.id, updatedCourse);
-      }
+      await updateCourse(updatedCourse);
       onSave?.(updatedCourse);
       onClose();
     } catch (error) {

@@ -328,8 +328,8 @@ const PostCard: React.FC<{
   </div>
 )
 
-// MessagingDemo shows only the posts feed (left column from community), no sidebar
-export const MessagingDemo: React.FC<PluginProps & {
+// Messaging shows only the posts feed (left column from community), no sidebar
+export const Messaging: React.FC<PluginProps & {
   posts: Post[]
   userLikes?: Set<string>
   loading: boolean

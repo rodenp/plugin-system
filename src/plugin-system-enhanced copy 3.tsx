@@ -198,11 +198,6 @@ const DemoContent: React.FC<{
       setUseStorageManager(enableStorageManager);
       
       console.log(`🔄 Storage Manager ${enableStorageManager ? 'enabled' : 'disabled'} - plugin will reconfigure automatically`);
-      
-      // Refresh the current tab data after a brief delay to allow plugin reconfiguration
-      setTimeout(() => {
-        refreshAllData();
-      }, 500);
     } catch (error) {
       console.error('Failed to toggle storage manager:', error);
     }
@@ -6243,11 +6238,6 @@ const DemoContent: React.FC<{
                         setUseGDPRMode(newValue);
                         
                         console.log(`🔄 Switching to ${newValue ? 'GDPR' : 'non-GDPR'} database - plugin will reconfigure automatically`);
-                        
-                        // Refresh the current tab data after a brief delay to allow plugin reconfiguration
-                        setTimeout(() => {
-                          refreshAllData();
-                        }, 500);
                         
                       } catch (error) {
                         console.error('❌ Failed to switch GDPR mode:', error);

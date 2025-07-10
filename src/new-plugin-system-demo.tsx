@@ -1,7 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { pluginRegistry } from './store/plugin-registry';
-import { CourseProvider } from './core/course-context';
 import { defaultTheme } from './plugins/shared/default-theme';
 import { newEventBus, EVENTS } from './core/new-event-bus';
 import { ToastProvider, useToast } from './components/ToastProvider';
@@ -3362,6 +3361,16 @@ const DemoContent: React.FC = () => {
       setLoading(false);
     }, 500);
   };
+
+  const handleLoadCourse = async (courseId: string) => {
+    // Find and return a specific course
+    const course = courses.find(c => c.id === courseId);
+    if (!course) {
+      showWarning('Course Not Found', `Course with ID ${courseId} not found.`);
+      return null;
+    }
+    return course;
+  };
   
   const handleCreatePost = async (post: any) => {
     const newPost = { ...post, id: Date.now().toString(), createdAt: new Date() };
@@ -3483,6 +3492,7 @@ const DemoContent: React.FC = () => {
     // Store comment in the appropriate storage backend
     const storagePrefix = `${storageBackend}_course_framework_community`;
     const commentsKey = `${storagePrefix}_post_comments_${postId}`;
+    console.log(`handleAddComment:Adding comment to post ${postId} in ${storageBackend} at key ${commentsKey}`);
     
     if (storageBackend === 'localStorage') {
       const existingComments = JSON.parse(localStorage.getItem(commentsKey) || '[]');
@@ -5660,11 +5670,14 @@ const DemoContent: React.FC = () => {
             },
             'classroom': {
               courses: courses,
+              loading: loading,
+              error: null,
               onCreateCourse: handleCreateCourse,
               onUpdateCourse: handleUpdateCourse,
               onDeleteCourse: handleDeleteCourse,
               onCloneCourse: handleCloneCourse,
               onLoadCourses: handleLoadCourses,
+              onLoadCourse: handleLoadCourse,
               onCreateLesson: handleCreateCourseLesson,
               onUpdateLesson: handleUpdateCourseLesson,
               onUpdateProgress: handleUpdateCourseProgress,
@@ -5674,6 +5687,7 @@ const DemoContent: React.FC = () => {
               onLessonCompleted: handleLessonCompleted,
               onModuleCompleted: handleModuleCompleted,
               onCourseCompleted: handleCourseCompleted,
+              savingStates: savingStates,
             },
             'members': {
               members: members,

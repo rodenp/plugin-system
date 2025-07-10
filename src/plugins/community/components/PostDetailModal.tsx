@@ -406,7 +406,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       onLike={onLikeComment}
                       onUnlike={onUnlikeComment}
                       onReply={handleReplyToComment}
-                      maxDepth={3}
+                      maxDepth={2}
                     />
                   ))}
                 </div>

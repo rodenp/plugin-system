@@ -34,6 +34,7 @@ export class IndexedDBAdapter extends BaseAdapter {
     }
 
     return new Promise((resolve, reject) => {
+      console.log(`📦 IndexedDBAdapter: Opening database "${this.dbName}" with version ${this.version}`);
       const request = indexedDB.open(this.dbName, this.version);
 
       request.onerror = () => {
@@ -141,6 +142,7 @@ export class IndexedDBAdapter extends BaseAdapter {
   async create<T extends StorageEntity>(table: string, data: T): Promise<T> {
     this.validateConnection();
     await this.ensureObjectStore(table);
+    console.log(`📦 Creating entity in database "${this.dbName}", table "${table}"`);
 
     return this.measureOperation(`create_${table}`, async () => {
       const entity = this.addTimestamps(data);
@@ -232,6 +234,7 @@ export class IndexedDBAdapter extends BaseAdapter {
   async query<T extends StorageEntity>(table: string, filter?: QueryFilter<T>): Promise<T[]> {
     this.validateConnection();
     await this.ensureObjectStore(table);
+    console.log(`📦 Querying database "${this.dbName}", table "${table}"`);
 
     return this.measureOperation(`query_${table}`, async () => {
       return new Promise<T[]>((resolve, reject) => {

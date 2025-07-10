@@ -74,10 +74,12 @@ export class StoragePlugin implements Plugin {
   };
 
   constructor(config: StoragePluginConfig) {
+    console.log(`🔧 StoragePlugin constructor called with config:`, config);
+    console.log(`🔧 Backend config:`, config.backend);
     this.config = this.validateAndNormalizeConfig(config);
     this.adapter = createStorageAdapter(this.config.backend);
     
-    console.log(`🔧 StoragePlugin created with backend: ${this.config.backend.type}`);
+    console.log(`🔧 StoragePlugin created with backend: ${this.config.backend.type}, database: ${this.config.backend.database}`);
   }
 
   // Plugin Lifecycle
@@ -693,6 +695,26 @@ export class StoragePlugin implements Plugin {
     }
     
     return this.consentManager.checkConsent(userId, purpose);
+  }
+
+  async getConsentStatus(userId: string, purposeId?: string): Promise<any[]> {
+    if (!this.config.gdpr.enabled || !this.consentManager) {
+      return []; // Non-GDPR mode - return empty array
+    }
+    
+    return this.consentManager.getConsentStatus(userId, purposeId);
+  }
+
+  async getAuditLogs(options?: any): Promise<any[]> {
+    if (!this.config.gdpr.enabled || !this.auditLogger) {
+      return []; // Non-GDPR mode or audit not enabled - return empty array
+    }
+    
+    if (!this.auditLogger.isReady()) {
+      return []; // Audit logger not ready
+    }
+    
+    return this.auditLogger.getAuditLogs(options);
   }
 
   // Check consent for storage operations

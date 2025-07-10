@@ -2,43 +2,34 @@ import * as React from 'react';
 import type { PluginProps } from '../../../types/plugin-interface';
 import { defaultTheme } from '@plugin-shared/default-theme';
 import { useCourseBuilderComponent } from '@/plugins/course-builder';
+import { useCourse } from '@core/course-context';
 
-// Extended props interface for classroom plugin
-interface ClassroomPluginProps extends PluginProps {
-  theme?: typeof defaultTheme;
-  courses?: any[];
-  loading?: boolean;
-  error?: string | null;
-  onCreateCourse?: (courseData: any) => Promise<void>;
-  onDeleteCourse?: (courseId: string) => Promise<void>;
-  onUpdateCourse?: (courseId: string, updates: any) => Promise<void>;
-  onCloneCourse?: (courseId: string) => Promise<void>;
-  onLoadCourse?: (courseId: string) => Promise<any>;
-  onLoadCourses?: () => Promise<void>;
-  savingStates?: {[key: string]: 'idle' | 'saving' | 'saved' | 'error'};
-}
-
-export const ClassroomComponent: React.FC<ClassroomPluginProps> = ({ 
+export const ClassroomComponent: React.FC<PluginProps & { theme?: typeof defaultTheme; onCreateCourse?: (courseData: any) => Promise<void>; courses?: any[]; loading?: boolean; onDeleteCourse?: (courseId: string) => Promise<void>; onUpdateCourse?: (courseId: string, updates: any) => Promise<void>; onCloneCourse?: (courseId: string) => Promise<void>; savingStates?: {[key: string]: 'idle' | 'saving' | 'saved' | 'error'} }> = ({ 
   currentUser, 
   communityId, 
   community, 
   userRole,
   theme = defaultTheme,
-  courses = [],
-  loading = false,
-  error = null,
   onCreateCourse,
+  courses: propCourses,
+  loading: propLoading,
   onDeleteCourse,
-  onUpdateCourse,
+  onUpdateCourse: propUpdateCourse,
   onCloneCourse,
-  onLoadCourse,
-  onLoadCourses,
   savingStates = {}
 }) => {
   const [view, setView] = React.useState<'list' | 'view' | 'edit' | 'create'>('list');
   const [selectedCourseId, setSelectedCourseId] = React.useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   const [activeDropdown, setActiveDropdown] = React.useState<string | null>(null);
+  const { courses: contextCourses, loading: contextLoading, error, deleteCourse: contextDeleteCourse, cloneCourse: contextCloneCourse, updateCourse: contextUpdateCourse, loadCourse } = useCourse();
+  
+  // Use courses from props if available, otherwise fall back to context
+  const courses = propCourses || contextCourses;
+  const loading = propLoading !== undefined ? propLoading : contextLoading;
+  const deleteCourse = onDeleteCourse || contextDeleteCourse;
+  const updateCourse = propUpdateCourse || contextUpdateCourse;
+  const cloneCourse = onCloneCourse || contextCloneCourse;
 
   const CourseViewer = useCourseBuilderComponent('CourseViewer');
   const CourseEditor = useCourseBuilderComponent('CourseEditor');
@@ -119,11 +110,11 @@ export const ClassroomComponent: React.FC<ClassroomPluginProps> = ({
         handleEditCourse(courseId);
         break;
       case 'duplicate':
-        onCloneCourse?.(courseId);
+        cloneCourse(courseId);
         break;
       case 'delete':
         if (window.confirm('Are you sure you want to delete this course?')) {
-          onDeleteCourse?.(courseId);
+          deleteCourse(courseId);
         }
         break;
     }
@@ -158,7 +149,7 @@ export const ClassroomComponent: React.FC<ClassroomPluginProps> = ({
           padding: theme.spacing.lg,
           textAlign: 'center'
         }}>
-          <p style={{ color: theme.colors.danger }}>Error loading courses: {error}</p>
+          <p style={{ color: theme.colors.error }}>Error loading courses: {error}</p>
         </div>
       </div>
     );
@@ -202,7 +193,7 @@ export const ClassroomComponent: React.FC<ClassroomPluginProps> = ({
                 {/* Course Cover */}
                 <div style={{
                   height: '8rem',
-                  backgroundColor: theme.colors.surfaceAlt,
+                  backgroundColor: theme.colors.backgroundAlt,
                   borderTopLeftRadius: theme.borders.borderRadius,
                   borderTopRightRadius: theme.borders.borderRadius,
                   display: 'flex',
@@ -369,13 +360,13 @@ export const ClassroomComponent: React.FC<ClassroomPluginProps> = ({
                     <div style={{
                       width: '100%',
                       height: '0.375rem',
-                      backgroundColor: theme.colors.muted,
+                      backgroundColor: theme.colors.progressBackground,
                       borderRadius: '9999px'
                     }}>
                       <div style={{
                         width: `${course.progress || 0}%`,
                         height: '100%',
-                        backgroundColor: theme.colors.accent,
+                        backgroundColor: theme.colors.progressForeground,
                         borderRadius: '9999px',
                         transition: 'width 0.3s'
                       }} />
@@ -446,19 +437,26 @@ export const ClassroomComponent: React.FC<ClassroomPluginProps> = ({
           <button onClick={handleBackToList} style={{ color: theme.colors.secondary }}>
             ← Back to Courses
           </button>
-          {CourseViewer && (
-            <CourseViewer 
-              courseId={selectedCourseId} 
-              onBack={handleBackToList}
-              course={courses.find(c => c.id === selectedCourseId) || null}
-              onUpdateCourse={async (courseId: any, updates: any) => {
-                if (onUpdateCourse) {
-                  await onUpdateCourse(courseId, updates);
+          <CourseViewer 
+            courseId={selectedCourseId} 
+            onBack={handleBackToList}
+            course={courses.find(c => c.id === selectedCourseId) || null}
+            onUpdateCourse={async (courseId, updates) => {
+              const course = courses.find(c => c.id === courseId);
+              if (course) {
+                const updatedCourse = { ...course, ...updates };
+                
+                if (propUpdateCourse) {
+                  // Use prop handler if provided (expects courseId, updates)
+                  await propUpdateCourse(courseId, updates);
+                } else if (contextUpdateCourse) {
+                  // Use context handler (expects full course object)
+                  await contextUpdateCourse(updatedCourse);
                 }
-              }}
-              theme={theme}
-            />
-          )}
+              }
+            }}
+            theme={theme}
+          />
         </div>
       )}
 
@@ -467,21 +465,28 @@ export const ClassroomComponent: React.FC<ClassroomPluginProps> = ({
           <button onClick={handleBackToList} style={{ color: theme.colors.secondary }}>
             ← Back to Courses
           </button>
-          {CourseEditor && (
-            <CourseEditor 
-              courseId={selectedCourseId} 
-              course={courses.find(c => c.id === selectedCourseId) || null}
-              onSave={handleBackToList} 
-              onCancel={handleBackToList}
-              loadCourse={onLoadCourse}
-              onUpdateCourse={async (courseId: any, updates: any) => {
-                if (onUpdateCourse) {
-                  await onUpdateCourse(courseId, updates);
+          <CourseEditor 
+            courseId={selectedCourseId} 
+            course={courses.find(c => c.id === selectedCourseId) || null}
+            onSave={handleBackToList} 
+            onCancel={handleBackToList}
+            loadCourse={loadCourse}
+            onUpdateCourse={async (courseId, updates) => {
+              const course = courses.find(c => c.id === courseId);
+              if (course) {
+                const updatedCourse = { ...course, ...updates };
+                
+                if (propUpdateCourse) {
+                  // Use prop handler if provided (expects courseId, updates)
+                  await propUpdateCourse(courseId, updates);
+                } else if (contextUpdateCourse) {
+                  // Use context handler (expects full course object)
+                  await contextUpdateCourse(updatedCourse);
                 }
-              }}
-              theme={theme}
-            />
-          )}
+              }
+            }}
+            theme={theme}
+          />
         </div>
       )}
 
@@ -506,16 +511,14 @@ export const ClassroomComponent: React.FC<ClassroomPluginProps> = ({
                 ✕
               </button>
             </div>
-            {CreateCourseForm && (
-              <CreateCourseForm 
-                onSuccess={handleCreateSuccess} 
-                onCancel={() => setShowCreateDialog(false)} 
-                onCreateCourse={onCreateCourse || (async (courseData) => {
-                  console.log('Creating course:', courseData);
-                })}
-                theme={theme} 
-              />
-            )}
+            <CreateCourseForm 
+              onSuccess={handleCreateSuccess} 
+              onCancel={() => setShowCreateDialog(false)} 
+              onCreateCourse={onCreateCourse || (async (courseData) => {
+                console.log('Creating course:', courseData);
+              })}
+              theme={theme} 
+            />
           </div>
         </div>
       )}

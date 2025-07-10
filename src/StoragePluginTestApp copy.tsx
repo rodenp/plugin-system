@@ -1,28 +1,26 @@
 // Comprehensive StoragePlugin Test & Demo Application
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
+  StoragePlugin,
+  createStoragePlugin,
+  StorageProvider,
+  useStorageContext,
   EntityType,
-  storagePlugin,
-  storageConfig
+  storagePlugin
 } from './plugins/storage';
 import type { StoragePluginConfig } from './plugins/storage';
 import { ConsentBanner, consentBannerStyles } from './components/ConsentBanner';
 import { pluginRegistry } from './store/plugin-registry';
-import { usePluginService } from './core/hooks/usePluginComponent';
 import './index.css';
 
-// Store config in window to work around Vite HMR module duplication
-(window as any).__storagePluginConfig = null;
-
-// Configure Storage Plugin
-const configureStoragePlugin = (enableGDPR: boolean): void => {
-  const config = {
-    backend: {
-      type: 'indexeddb' as const,
-      database: enableGDPR ? 'storage_test_gdpr' : 'storage_test_basic',
-      options: { version: 1 }
-    },
+// Test Configuration
+const createTestConfig = (enableGDPR: boolean): StoragePluginConfig => ({
+  backend: {
+    type: 'indexeddb',
+    database: enableGDPR ? 'storage_test_gdpr' : 'storage_test_basic',
+    options: { version: 1 }
+  },
   gdpr: {
     enabled: enableGDPR,
     encryption: {
@@ -105,115 +103,7 @@ const configureStoragePlugin = (enableGDPR: boolean): void => {
     priorityLevels: 3,
     deadLetterQueue: false
   }
-  };
-  
-  // Store config in both places to work around module duplication
-  storageConfig.setConfig(config);
-  (window as any).__storagePluginConfig = config;
-};
-
-// Storage Plugin Hook - replaces useStorageContext
-const useStoragePlugin = () => {
-  const create = usePluginService('storage', 'create');
-  const read = usePluginService('storage', 'read');
-  const update = usePluginService('storage', 'update');
-  const deleteEntity = usePluginService('storage', 'delete');
-  const query = usePluginService('storage', 'query');
-  const clear = usePluginService('storage', 'clear');
-  const count = usePluginService('storage', 'count');
-  const createMany = usePluginService('storage', 'createMany');
-  
-  // Convenience methods
-  const save = usePluginService('storage', 'save');
-  const findAll = usePluginService('storage', 'findAll');
-  const findById = usePluginService('storage', 'findById');
-  
-  // GDPR operations
-  const exportUserData = usePluginService('storage', 'exportUserData');
-  const deleteUserData = usePluginService('storage', 'deleteUserData');
-  const grantConsent = usePluginService('storage', 'grantConsent');
-  const revokeConsent = usePluginService('storage', 'revokeConsent');
-  const checkConsent = usePluginService('storage', 'checkConsent');
-  const getConsentStatus = usePluginService('storage', 'getConsentStatus');
-  
-  // Configuration
-  const getConfig = usePluginService('storage', 'getConfig');
-  const setConfig = usePluginService('storage', 'setConfig');
-  
-  // Storage information
-  const getStorageInfo = usePluginService('storage', 'getStorageInfo');
-  const getStatus = usePluginService('storage', 'getStatus');
-  const getInstance = usePluginService('storage', 'getInstance');
-  
-  // GDPR specific services
-  const getEncryptionStatus = usePluginService('storage', 'getEncryptionStatus');
-  const getAuditLogs = usePluginService('storage', 'getAuditLogs');
-  
-  // Calculate if storage is initialized based on available services
-  const isInitialized = !!(query && create && update && deleteEntity && getStorageInfo);
-  
-  // Memoize the storage object to prevent unnecessary re-renders
-  return useMemo(() => ({
-    // Status
-    isInitialized,
-    
-    // Core operations
-    create,
-    read,
-    update,
-    delete: deleteEntity,
-    query,
-    clear,
-    count,
-    createMany,
-    
-    // Convenience methods
-    save,
-    findAll,
-    findById,
-    
-    // GDPR operations
-    exportUserData,
-    deleteUserData,
-    grantConsent,
-    revokeConsent,
-    checkConsent,
-    getConsentStatus,
-    queryConsent: checkConsent, // Alias for existing usage
-    
-    // Configuration
-    getConfig,
-    setConfig,
-    
-    // Storage information
-    getStorageInfo,
-    getStatus,
-    getInstance,
-    
-    // GDPR specific services
-    getEncryptionStatus,
-    getAuditLogs,
-    
-    // Event system - will be available through getInstance
-    on: (event: string, callback: Function) => {
-      const instance = getInstance?.();
-      if (instance && typeof instance.on === 'function') {
-        instance.on(event, callback);
-      }
-    },
-    off: (event: string, callback: Function) => {
-      const instance = getInstance?.();
-      if (instance && typeof instance.off === 'function') {
-        instance.off(event, callback);
-      }
-    }
-  }), [
-    isInitialized, create, read, update, deleteEntity, query, clear, count, createMany,
-    save, findAll, findById, exportUserData, deleteUserData, grantConsent, revokeConsent,
-    checkConsent, getConsentStatus, getConfig, setConfig, getStorageInfo, getStatus, getInstance,
-    getEncryptionStatus, getAuditLogs
-  ]);
-};
+});
 
 // Sample Data Generator
 const generateUser = (id: string) => ({
@@ -266,8 +156,7 @@ const JSONViewer: React.FC<{ data: any; title: string }> = ({ data, title }) => 
 
 // Entity Manager Component
 const EntityManager: React.FC = () => {
-  const storage = useStoragePlugin();
-  const isInitialized = !!(storage.query && storage.create && storage.update && storage.delete);
+  const { storage, isInitialized } = useStorageContext();
   const [activeEntity, setActiveEntity] = useState<string>(EntityType.USERS);
   const [entities, setEntities] = useState<any[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
@@ -299,34 +188,6 @@ const EntityManager: React.FC = () => {
     return activeVersion ? activeVersion.version : Math.max(...versions.map(v => v.version));
   };
 
-  useEffect(() => {
-    if (!storage || !isInitialized) return;
-    
-    const loadData = async () => {
-      setLoading(true);
-      
-      try {
-        console.log(`🔄 Loading ${activeEntity} entities from storage...`);
-        if (!storage.query) {
-          throw new Error('Storage query service not available');
-        }
-        const result = await storage.query(activeEntity);
-        console.log(`📊 Loaded ${result.length} ${activeEntity} entities`);
-        
-        // Force complete state update with new array reference
-        setEntities([...result]);
-      } catch (error) {
-        console.error('Failed to load entities:', error);
-        // Set empty array on error to prevent infinite loops
-        setEntities([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadData();
-  }, [storage, isInitialized, activeEntity, refreshKey]);
-
   const loadEntities = useCallback(async (force = false) => {
     if (!storage || !isInitialized) return;
     
@@ -339,9 +200,6 @@ const EntityManager: React.FC = () => {
       }
       
       console.log(`🔄 Loading ${activeEntity} entities from storage...`);
-      if (!storage.query) {
-        throw new Error('Storage query service not available');
-      }
       const result = await storage.query(activeEntity);
       console.log(`📊 Loaded ${result.length} ${activeEntity} entities`);
       
@@ -354,7 +212,11 @@ const EntityManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [storage, isInitialized, activeEntity]);
+  }, [storage, isInitialized, activeEntity, refreshKey]);
+
+  useEffect(() => {
+    loadEntities();
+  }, [loadEntities]);
 
   useEffect(() => {
     const loadEncryptionData = async () => {
@@ -414,14 +276,10 @@ const EntityManager: React.FC = () => {
   const selectEntityWithEncryption = async (entity: any) => {
     setSelectedEntity(entity);
     
-    // Get the actual storage instance
-    const storageInstance = storage.getInstance ? storage.getInstance() : null;
-    
-    // If encryption is enabled, also fetch the encrypted version directly from adapter
-    if (storageInstance && storageInstance.config?.gdpr?.encryption?.enabled) {
+    // If encryption is enabled, also fetch the encrypted version
+    if (storage && (storage as any).config?.gdpr?.encryption?.enabled) {
       try {
-        const storageAdapter = storageInstance.adapter;
-        // Get raw encrypted data directly from adapter (bypasses StoragePlugin decryption)
+        const storageAdapter = (storage as any).adapter;
         const encryptedEntity = await storageAdapter.read(activeEntity, entity.id);
         setSelectedEntityEncrypted(encryptedEntity);
       } catch (error) {
@@ -622,9 +480,6 @@ const EntityManager: React.FC = () => {
       
       try {
         // Create in storage
-        if (!storage.create) {
-          throw new Error('Storage create service not available');
-        }
         await storage.create(activeEntity, newEntity);
         
         // Add new entity to UI
@@ -697,9 +552,6 @@ const EntityManager: React.FC = () => {
       
       // Then sync with storage
       try {
-        if (!storage.update) {
-          throw new Error('Storage update service not available');
-        }
         await storage.update(activeEntity, editingEntity.id, updatedEntity);
         console.log('Entity updated successfully and synced to storage');
         
@@ -730,9 +582,6 @@ const EntityManager: React.FC = () => {
         
         try {
           // Delete from storage
-          if (!storage.delete) {
-            throw new Error('Storage delete service not available');
-          }
           await storage.delete(activeEntity, id);
           
           // Remove entity from UI
@@ -1516,8 +1365,7 @@ const EntityManager: React.FC = () => {
 
 // Key Rotation Management Component
 const KeyRotationManagement: React.FC = () => {
-  const storage = useStoragePlugin();
-  const isInitialized = !!(storage.query && storage.create && storage.update && storage.delete);
+  const { storage, isInitialized } = useStorageContext();
   const [keyInfo, setKeyInfo] = useState<any>(null);
   const [rotationHistory, setRotationHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2350,9 +2198,7 @@ const ConsentHistoryAndAnalytics: React.FC<{ userId: string; storage: any }> = (
 
 // GDPR Tools Component
 const GDPRTools: React.FC = () => {
-  const storage = useStoragePlugin();
-  const isInitialized = !!(storage.query && storage.create && storage.update && storage.delete);
-  const config = storage.getConfig?.();
+  const { storage, isInitialized, config } = useStorageContext();
   const [selectedUserId, setSelectedUserId] = useState('');
   const [users, setUsers] = useState<any[]>([]);
   const [consents, setConsents] = useState<any[]>([]);
@@ -2437,13 +2283,12 @@ const GDPRTools: React.FC = () => {
     if (!storage || !selectedUserId) return;
     
     try {
-      // Use the proper getConsentStatus method
-      if (typeof storage.getConsentStatus === 'function') {
-        const result = await storage.getConsentStatus(selectedUserId);
-        // Ensure result is an array
-        setConsents(Array.isArray(result) ? result : []);
+      // Check if queryConsent method exists
+      if (typeof storage.queryConsent === 'function') {
+        const result = await storage.queryConsent(selectedUserId);
+        setConsents(result);
       } else {
-        // Fallback to empty array if method doesn't exist
+        // Mock consent data if method doesn't exist
         setConsents([]);
       }
     } catch (error) {
@@ -2486,15 +2331,6 @@ const GDPRTools: React.FC = () => {
 
   const handleConsentBannerConsent = async (purposeIds: string[], granted: boolean) => {
     if (!storage || !selectedUserId) return;
-    
-    // Check if GDPR is enabled in the current storage configuration
-    const currentConfig = storage.getConfig?.();
-    if (!currentConfig?.gdpr?.enabled) {
-      console.warn('GDPR is not enabled in storage configuration. Consent operations are not available.');
-      // Show feedback to user that consent was "accepted" for demo purposes
-      alert('Demo: Consent recorded (GDPR features disabled in current configuration)');
-      return;
-    }
     
     try {
       if (granted) {
@@ -2856,26 +2692,11 @@ const GDPRTools: React.FC = () => {
     console.log(`✅ Downloaded export in ${exportFormat.toUpperCase()} format`);
   };
 
-  const handleExportSubmit = async () => {
+  const handleExportSubmit = () => {
     if (!selectedUserId) return;
     
-    try {
-      console.log(`📦 Exporting and downloading user data in ${exportFormat.toUpperCase()} format...`);
-      
-      // Export the data
-      await exportUserData(exportFormat, selectedTables.length > 0 ? selectedTables : undefined, includeMetadata, includeAuditTrail);
-      
-      // Auto-download in the selected format after a brief delay to ensure export is complete
-      setTimeout(() => {
-        downloadExport(exportFormat);
-      }, 100);
-      
-      setShowExportModal(false);
-      console.log(`✅ Export completed and download started in ${exportFormat.toUpperCase()} format`);
-    } catch (error) {
-      console.error('❌ Failed to export and download data:', error);
-      alert('❌ Failed to export data. Please try again.');
-    }
+    exportUserData(exportFormat, selectedTables.length > 0 ? selectedTables : undefined, includeMetadata, includeAuditTrail);
+    setShowExportModal(false);
   };
 
   const loadCurrentRestrictions = async () => {
@@ -3029,9 +2850,6 @@ const GDPRTools: React.FC = () => {
       console.log('📋 Loading current user data for rectification...');
       
       // Get user data from storage
-      if (!storage.findById) {
-        throw new Error('Storage findById service not available');
-      }
       const userData = await storage.findById(EntityType.USERS, selectedUserId);
       if (userData) {
         setCurrentUserData(userData);
@@ -3071,9 +2889,6 @@ const GDPRTools: React.FC = () => {
       }
 
       // Update user data
-      if (!storage.update) {
-        throw new Error('Storage update service not available');
-      }
       await storage.update(EntityType.USERS, selectedUserId, updatedData);
       
       // Log audit event for data rectification (Article 16)
@@ -3246,7 +3061,7 @@ const GDPRTools: React.FC = () => {
           {/* Consent Banner Component */}
           {showConsentBanner && (
             <ConsentBanner
-              purposes={storageConfig.getConfig().gdpr.consent.purposes}
+              purposes={createTestConfig(true).gdpr.consent.purposes}
               userId={selectedUserId || 'demo-user'}
               onConsent={handleConsentBannerConsent}
               onDismiss={() => setShowConsentBanner(false)}
@@ -3323,21 +3138,7 @@ const GDPRTools: React.FC = () => {
 
           {exportData && (
             <div className="export-results">
-              <div className="export-header">
-                <h4>✅ Data Export Completed</h4>
-                <button 
-                  onClick={() => setExportData(null)} 
-                  className="close-btn"
-                  title="Close export results"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="export-success-message">
-                <p>🎉 Your data has been exported and downloaded in <strong>{exportData.format?.toUpperCase() || 'JSON'}</strong> format!</p>
-                <p>Check your Downloads folder for the file: <code>user-data-{selectedUserId}-{new Date().toISOString().split('T')[0]}.{exportData.format === 'json' ? 'json' : exportData.format === 'xml' ? 'xml' : 'csv'}</code></p>
-              </div>
-              
+              <h4>📋 Data Export Results</h4>
               <div className="export-summary">
                 <div className="export-info">
                   <p><strong>Export ID:</strong> {exportData.id}</p>
@@ -3352,16 +3153,16 @@ const GDPRTools: React.FC = () => {
                 </div>
                 
                 <div className="export-actions">
-                  <h5>🔄 Download in Other Formats (Optional)</h5>
+                  <h5>💾 Download Options</h5>
                   <div className="download-buttons">
-                    <button onClick={() => downloadExport('json')} className="btn secondary">
-                      📄 Re-download as JSON
+                    <button onClick={() => downloadExport('json')} className="btn primary">
+                      📄 Download JSON
                     </button>
                     <button onClick={() => downloadExport('xml')} className="btn secondary">
-                      📋 Download as XML
+                      📋 Download XML
                     </button>
                     <button onClick={() => downloadExport('csv')} className="btn secondary">
-                      📊 Download as CSV
+                      📊 Download CSV
                     </button>
                   </div>
                   
@@ -3772,7 +3573,7 @@ const GDPRTools: React.FC = () => {
                       onClick={handleExportSubmit}
                       className="btn primary"
                     >
-                      📥 Export & Download {exportFormat.toUpperCase()}
+                      📦 Create Export
                     </button>
                   </div>
                 </div>
@@ -4006,8 +3807,7 @@ const getHumanReadableSummary = (log: any): string => {
 
 // Audit Log Viewer Component
 const AuditLogViewer: React.FC = () => {
-  const storage = useStoragePlugin();
-  const isInitialized = !!(storage.query && storage.create && storage.update && storage.delete);
+  const { storage, isInitialized } = useStorageContext();
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -4082,14 +3882,15 @@ const AuditLogViewer: React.FC = () => {
     try {
       console.log('📋 Loading audit logs...');
       
-      // Use the proper getAuditLogs service
-      if (!storage.getAuditLogs) {
+      // Get audit service from storage plugin
+      const auditService = (storage as any).auditLogger;
+      if (!auditService) {
         console.warn('⚠️ Audit service not available');
         return;
       }
 
       // Query logs with pagination
-      const logs = await storage.getAuditLogs({
+      const logs = await auditService.getAuditLogs({
         limit: 1000, // Get more logs for filtering
         orderBy: [{ field: 'timestamp', direction: 'desc' }]
       });
@@ -4529,8 +4330,7 @@ const AuditLogViewer: React.FC = () => {
 
 // Compliance Reporting Dashboard Component
 const ComplianceReportingDashboard: React.FC = () => {
-  const storage = useStoragePlugin();
-  const isInitialized = !!(storage.query && storage.create && storage.update && storage.delete);
+  const { storage, isInitialized } = useStorageContext();
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
   const [timeRange, setTimeRange] = useState('30');
@@ -5183,9 +4983,7 @@ const ComplianceReportingDashboard: React.FC = () => {
 
 // Performance Monitor Component
 const PerformanceMonitor: React.FC = () => {
-  const storage = useStoragePlugin();
-  const isInitialized = !!(storage.query && storage.create && storage.update && storage.delete);
-  const status = storage.getStatus?.();
+  const { storage, isInitialized, status } = useStorageContext();
   const [metrics, setMetrics] = useState<any>(null);
   const [storageInfo, setStorageInfo] = useState<any>(null);
 
@@ -5193,17 +4991,12 @@ const PerformanceMonitor: React.FC = () => {
     if (!storage || !isInitialized) return;
     
     try {
-      // Get storage info through the service
-      const info = storage.getStorageInfo ? await storage.getStorageInfo() : null;
+      const [perf, info] = await Promise.all([
+        storage.getPerformanceMetrics(),
+        storage.getStorageInfo()
+      ]);
+      setMetrics(perf);
       setStorageInfo(info);
-      
-      // Performance metrics not yet exposed as service, use placeholder
-      setMetrics({
-        operationCount: 0,
-        averageResponseTime: 0,
-        cacheHitRate: 0,
-        errorCount: 0
-      });
     } catch (error) {
       console.error('Failed to load metrics:', error);
     }
@@ -5285,10 +5078,7 @@ const PerformanceMonitor: React.FC = () => {
 // Main Test App Component
 const StorageTestApp: React.FC<{ enableGDPR: boolean }> = ({ enableGDPR }) => {
   const [activeTab, setActiveTab] = useState('entities');
-  const storage = useStoragePlugin();
-  const isLoading = !storage.isInitialized;
-  const isInitialized = storage.isInitialized;
-  const error = null; // Plugin system doesn't expose error state directly
+  const { isLoading, isInitialized, error } = useStorageContext();
 
   const tabs = [
     { id: 'entities', label: '📊 Entity Manager', component: EntityManager },
@@ -5315,7 +5105,7 @@ const StorageTestApp: React.FC<{ enableGDPR: boolean }> = ({ enableGDPR }) => {
     return (
       <div className="error-state">
         <h2>❌ Initialization Failed</h2>
-        <p>Storage plugin failed to initialize</p>
+        <p>{error.message}</p>
         <button onClick={() => window.location.reload()} className="btn primary">
           Retry
         </button>
@@ -5360,53 +5150,21 @@ const StorageTestApp: React.FC<{ enableGDPR: boolean }> = ({ enableGDPR }) => {
 
 // App Wrapper with Mode Switcher
 const AppWrapper: React.FC = () => {
-  // Read initial GDPR mode from sessionStorage (for page reload persistence)
-  const initialGDPRMode = sessionStorage.getItem('storagePluginGDPRMode') === 'true';
-  const [enableGDPR, setEnableGDPR] = useState(initialGDPRMode);
-  
-  // Register storage plugin once at startup
-  useEffect(() => {
-    // Only register once, don't install yet
-    if (!pluginRegistry.getPlugin('storage')) {
-      console.log('🔌 Registering storage plugin...');
-      pluginRegistry.register(storagePlugin);
-    }
-  }, []);
-  
-  // Install storage plugin with initial configuration
-  useEffect(() => {
-    const initializePlugin = async () => {
-      try {
-        configureStoragePlugin(enableGDPR);
-        await pluginRegistry.install('storage');
-      } catch (error) {
-        console.error('❌ Failed to initialize storage plugin:', error);
-      }
-    };
-    
-    initializePlugin();
-  }, [enableGDPR]);
+  const [enableGDPR, setEnableGDPR] = useState(false);
+  const [key, setKey] = useState(0);
 
-  const handleModeSwitch = async (gdprMode: boolean) => {
-    try {
-      // Store the desired mode in sessionStorage and reload to clear module cache
-      sessionStorage.setItem('storagePluginGDPRMode', gdprMode.toString());
-      
-      // Uninstall the current storage plugin - this will properly close the database
-      if (pluginRegistry.isInstalled('storage')) {
-        await pluginRegistry.uninstall('storage');
-      }
-      
-      // Reload the page to clear Vite's module cache
-      window.location.reload();
-      
-      // Update the UI state
-      setEnableGDPR(gdprMode);
-      
-      console.log(`✅ Successfully switched to ${gdprMode ? 'GDPR' : 'Basic'} mode`);
-    } catch (error) {
-      console.error('❌ Failed to switch storage mode:', error);
-    }
+  // Register and install storage plugin following plugin system architecture
+  useEffect(() => {
+    console.log('🔌 Registering storage plugin...');
+    pluginRegistry.register(storagePlugin);
+    console.log('🔌 Installing storage plugin...');
+    pluginRegistry.install('storage');
+    console.log('✅ Storage plugin registered and installed');
+  }, []);
+
+  const handleModeSwitch = (gdprMode: boolean) => {
+    setEnableGDPR(gdprMode);
+    setKey(prev => prev + 1); // Force re-initialization
   };
 
   return (
@@ -5441,7 +5199,19 @@ const AppWrapper: React.FC = () => {
         </div>
       </div>
 
+      <StorageProvider 
+        key={key}
+        config={createTestConfig(enableGDPR)}
+        enableDevTools={true}
+        onInitialized={(storage: any) => {
+          console.log('✅ StoragePlugin initialized:', storage.getStatus());
+        }}
+        onError={(error: any) => {
+          console.error('❌ StoragePlugin error:', error);
+        }}
+      >
         <StorageTestApp enableGDPR={enableGDPR} />
+      </StorageProvider>
     </div>
   );
 };

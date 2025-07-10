@@ -6,40 +6,20 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Plus, Search, Filter, Upload, BookOpen, Download, FileText, BarChart3, Trophy, CreditCard } from 'lucide-react';
 import { CreateCourseForm } from './CreateCourseForm';
 import { CourseCard } from './CourseCard';
+import { useCourse } from '@/core/course-context';
 import type { Course } from '@/types/core';
 
 interface CourseListProps {
-  courses: Course[];
-  loading: boolean;
   onViewCourse: (courseId: string) => void;
   onEditCourse: (courseId: string) => void;
   onSettingsCourse?: (courseId: string) => void;
   onShowExtensions?: () => void;
   onShowPlanPricing?: () => void;
-  onCreateCourse?: (courseData: any) => Promise<void>;
-  onImportCourse?: (data: string) => Promise<void>;
-  onDeleteCourse?: (courseId: string) => Promise<void>;
-  onCloneCourse?: (courseId: string) => Promise<void>;
-  onSaveAsTemplate?: (courseId: string, name: string, description: string) => Promise<void>;
-  onExportCourse?: (courseId: string) => Promise<string>;
 }
 
 
-export function CourseList({ 
-  courses, 
-  loading, 
-  onViewCourse, 
-  onEditCourse, 
-  onSettingsCourse, 
-  onShowExtensions, 
-  onShowPlanPricing,
-  onCreateCourse,
-  onImportCourse,
-  onDeleteCourse,
-  onCloneCourse,
-  onSaveAsTemplate,
-  onExportCourse
-}: CourseListProps) {
+export function CourseList({ onViewCourse, onEditCourse, onSettingsCourse, onShowExtensions, onShowPlanPricing }: CourseListProps) {
+  const { courses, loading, importCourse, deleteCourse, exportCourse } = useCourse();
   
   // Get user information from global plugin config
   const userInfo = (window as any).__courseFrameworkUser;
@@ -77,7 +57,7 @@ export function CourseList({
   }, [courses, searchTerm, filterType]);
 
   const handleImportCourse = async () => {
-    if (!importData.trim() || !onImportCourse) return;
+    if (!importData.trim()) return;
 
     try {
       setIsImporting(true);
@@ -90,7 +70,7 @@ export function CourseList({
         throw new Error('Invalid JSON format. Please check your course data.');
       }
 
-      await onImportCourse(importData);
+      await importCourse(importData);
       setImportData('');
       setShowImportDialog(false);
     } catch (error) {
@@ -119,24 +99,21 @@ export function CourseList({
 
 
   const handleDeleteCourse = async (courseId: string) => {
-    if (!onDeleteCourse) return;
     try {
-      await onDeleteCourse(courseId);
+      await deleteCourse(courseId);
     } catch (error) {
       console.error('Failed to delete course:', error);
     }
   };
 
   const handleExportAll = async () => {
-    if (!onExportCourse) return;
-    
     try {
       setIsExportingAll(true);
 
       // Export all courses (excluding templates)
       const coursesToExport = courses.filter(c => !c.isTemplate);
 
-      const exportPromises = coursesToExport.map(course => onExportCourse(course.id));
+      const exportPromises = coursesToExport.map(course => exportCourse(course.id));
       const exportedData = await Promise.all(exportPromises);
 
       // Combine all courses into one export
@@ -303,9 +280,6 @@ export function CourseList({
               <CreateCourseForm
                 onSuccess={() => setShowCreateDialog(false)}
                 onCancel={() => setShowCreateDialog(false)}
-                onCreateCourse={onCreateCourse || (async (courseData) => {
-                  console.log('Creating course:', courseData);
-                })}
               />
             </DialogContent>
           </Dialog>
@@ -366,10 +340,6 @@ export function CourseList({
               onView={onViewCourse}
               onEdit={onEditCourse}
               onSettings={onSettingsCourse}
-              onDelete={handleDeleteCourse}
-              onClone={onCloneCourse}
-              onSaveAsTemplate={onSaveAsTemplate}
-              onExport={onExportCourse}
               userPlan={userInfo?.plan}
             />
           ))}

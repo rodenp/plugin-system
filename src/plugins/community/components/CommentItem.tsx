@@ -12,7 +12,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   onLike,  
   onUnlike,
   onReply,
-  maxDepth = 3
+  maxDepth = 2
 }) => {
   const [showReplyForm, setShowReplyForm] = React.useState(false)
   // Always show replies by default, let user hide them if needed
@@ -34,6 +34,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const handleReply = async (content: string, parentId?: string, mediaData?: any) => {
     try {
       await onReply(content, comment.id, mediaData)  // Pass media data to onReply
+      console.log('DEBUG:CommentItem:handleReply:Reply added successfully')
       setShowReplyForm(false)
     } catch (error) {
       console.error('Error adding reply:', error)

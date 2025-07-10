@@ -7,7 +7,6 @@ import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
 import { Eye, Edit, Trash2, Copy, MoreVertical, Settings, FileText, Download, Lock, CheckCircle, Clock, Cog, BookOpen } from 'lucide-react';
 import type { Course } from '@/types/core';
-import { useCourse } from '@/core/course-context';
 import { CourseDetails } from './CourseDetails';
 
 interface CourseCardProps {
@@ -16,11 +15,25 @@ interface CourseCardProps {
   onEdit: (courseId: string) => void;
   onSettings?: (courseId: string) => void;
   onDetails?: (courseId: string) => void;
+  onDelete?: (courseId: string) => Promise<void>;
+  onClone?: (courseId: string) => Promise<void>;
+  onSaveAsTemplate?: (courseId: string, name: string, description: string) => Promise<void>;
+  onExport?: (courseId: string) => Promise<string>;
   userPlan?: any; // Current user subscription plan object
 }
 
-export function CourseCard({ course, onView, onEdit, onSettings, onDetails, userPlan = null }: CourseCardProps) {
-  const { deleteCourse, cloneCourse, saveAsTemplate, exportCourse } = useCourse();
+export function CourseCard({ 
+  course, 
+  onView, 
+  onEdit, 
+  onSettings, 
+  onDetails, 
+  onDelete,
+  onClone,
+  onSaveAsTemplate,
+  onExport,
+  userPlan = null 
+}: CourseCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -73,9 +86,10 @@ export function CourseCard({ course, onView, onEdit, onSettings, onDetails, user
   };
 
   const handleDelete = async () => {
+    if (!onDelete) return;
     try {
       setIsDeleting(true);
-      await deleteCourse(course.id);
+      await onDelete(course.id);
       setShowDeleteDialog(false);
     } catch (error) {
       console.error('Failed to delete course:', error);
@@ -85,9 +99,10 @@ export function CourseCard({ course, onView, onEdit, onSettings, onDetails, user
   };
 
   const handleClone = async () => {
+    if (!onClone) return;
     try {
       setIsCloning(true);
-      await cloneCourse(course.id);
+      await onClone(course.id);
     } catch (error) {
       console.error('Failed to clone course:', error);
     } finally {
@@ -96,9 +111,10 @@ export function CourseCard({ course, onView, onEdit, onSettings, onDetails, user
   };
 
   const handleSaveAsTemplate = async () => {
+    if (!onSaveAsTemplate) return;
     try {
       setIsSavingTemplate(true);
-      await saveAsTemplate(course.id, templateName, templateDescription);
+      await onSaveAsTemplate(course.id, templateName, templateDescription);
       setShowTemplateDialog(false);
     } catch (error) {
       console.error('Failed to save as template:', error);
@@ -108,9 +124,10 @@ export function CourseCard({ course, onView, onEdit, onSettings, onDetails, user
   };
 
   const handleExport = async () => {
+    if (!onExport) return;
     try {
       setIsExporting(true);
-      await exportCourse(course.id);
+      await onExport(course.id);
     } catch (error) {
       console.error('Failed to export course:', error);
     } finally {

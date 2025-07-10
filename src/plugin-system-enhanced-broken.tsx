@@ -9,25 +9,41 @@ import { EventsModal } from './components/EventsModal';
 
 // Import Storage Plugin
 import { storagePlugin, storageConfig, EntityType } from './plugins/storage';
+import type { StoragePluginConfig } from './plugins/storage';
 import { usePluginService } from './core/hooks/usePluginComponent';
 
-// Database naming helper for storage manager and GDPR modes
-const getDatabaseName = (useStorageManager: boolean, useGDPRMode: boolean) => {
-  const baseName = import.meta.env.VITE_LOCAL_DB || 'plugin_test';
+// Storage Plugin Hook - replaces legacy storage
+const useStoragePlugin = () => {
+  const create = usePluginService('storage', 'create');
+  const read = usePluginService('storage', 'read');
+  const update = usePluginService('storage', 'update');
+  const deleteEntity = usePluginService('storage', 'delete');
+  const query = usePluginService('storage', 'query');
+  const clear = usePluginService('storage', 'clear');
+  const count = usePluginService('storage', 'count');
+  const createMany = usePluginService('storage', 'createMany');
+  const findAll = usePluginService('storage', 'findAll');
+  const findById = usePluginService('storage', 'findById');
+  const deleteMany = usePluginService('storage', 'deleteMany');
   
-  if (useStorageManager && useGDPRMode) {
-    return `${baseName}_sm_gdpr`;
-  } else if (useStorageManager) {
-    return `${baseName}_sm`;
-  } else if (useGDPRMode) {
-    return `${baseName}_gdpr`;
-  } else {
-    return baseName;
-  }
+  // Calculate if storage is initialized based on available services
+  const isInitialized = !!(query && create && update && deleteEntity);
+  
+  return {
+    isInitialized,
+    create,
+    read,
+    update,
+    delete: deleteEntity,
+    query,
+    clear,
+    count,
+    createMany,
+    findAll,
+    findById,
+    deleteMany
+  };
 };
-
-
-// Note: storage object is passed down from parent component with all storage methods
 
 // Import new plugins 
 import { messagingPlugin } from './plugins/messaging';
@@ -57,13 +73,13 @@ console.log('🔍 Imports loaded:', { messagingPlugin, communitySidebarPlugin, c
 
 // Inner component that uses toast
 const DemoContent: React.FC<{
-  storageBackend: 'indexeddb';
-  setStorageBackend: (backend: 'indexeddb') => void;
+  storageBackend: 'localStorage' | 'indexedDB';
+  setStorageBackend: (backend: 'localStorage' | 'indexedDB') => void;
   useStorageManager: boolean;
   setUseStorageManager: (enabled: boolean) => void;
   useGDPRMode: boolean;
   setUseGDPRMode: (enabled: boolean) => void;
-  parentStorageConfig: any;
+  handleStorageManagerToggle: (enabled: boolean) => Promise<void>;
 }> = ({ 
   storageBackend: parentStorageBackend, 
   setStorageBackend: setParentStorageBackend,
@@ -71,149 +87,12 @@ const DemoContent: React.FC<{
   setUseStorageManager,
   useGDPRMode,
   setUseGDPRMode,
-  parentStorageConfig
+  handleStorageManagerToggle
 }) => {
   console.log('🚀 NewPluginSystemDemo component rendering...');
   
-  // Storage Plugin Hook - replaces legacy storage
-  // Always call hooks (React rules) but only use services if plugin is installed
-  const isStorageInstalled = pluginRegistry.isInstalled('storage');
-  
-  const createRaw = usePluginService('storage', 'create');
-  const readRaw = usePluginService('storage', 'read');
-  const updateRaw = usePluginService('storage', 'update');
-  const deleteEntityRaw = usePluginService('storage', 'delete');
-  const queryRaw = usePluginService('storage', 'query');
-  const clearRaw = usePluginService('storage', 'clear');
-  const countRaw = usePluginService('storage', 'count');
-  const createManyRaw = usePluginService('storage', 'createMany');
-  const findAllRaw = usePluginService('storage', 'findAll');
-  const findByIdRaw = usePluginService('storage', 'findById');
-  // Note: deleteMany doesn't exist, using clear instead
-  
-  const create = isStorageInstalled ? createRaw : null;
-  const read = isStorageInstalled ? readRaw : null;
-  const update = isStorageInstalled ? updateRaw : null;
-  const deleteEntity = isStorageInstalled ? deleteEntityRaw : null;
-  const query = isStorageInstalled ? queryRaw : null;
-  const clear = isStorageInstalled ? clearRaw : null;
-  const count = isStorageInstalled ? countRaw : null;
-  const createMany = isStorageInstalled ? createManyRaw : null;
-  const findAll = isStorageInstalled ? findAllRaw : null;
-  const findById = isStorageInstalled ? findByIdRaw : null;
-  // deleteMany doesn't exist in storage plugin, use clear or individual delete operations
-  
-  // GDPR Consent Functions from Storage Plugin
-  const grantConsentRaw = usePluginService('storage', 'grantConsent');
-  const revokeConsentRaw = usePluginService('storage', 'revokeConsent');
-  const checkConsentRaw = usePluginService('storage', 'checkConsent');
-  const getConsentStatusRaw = usePluginService('storage', 'getConsentStatus');
-  const exportUserDataRaw = usePluginService('storage', 'exportUserData');
-  
-  const grantConsent = isStorageInstalled ? grantConsentRaw : null;
-  const revokeConsent = isStorageInstalled ? revokeConsentRaw : null;
-  const checkConsent = isStorageInstalled ? checkConsentRaw : null;
-  const getConsentStatus = isStorageInstalled ? getConsentStatusRaw : null;
-  const exportUserData = isStorageInstalled ? exportUserDataRaw : null;
-
-  // Access data subject rights service for erasure functionality
-  const getDataSubjectRights = () => {
-    if (!isStorageInstalled || !getInstance) return null;
-    try {
-      const instance = getInstance();
-      return instance?.dataSubjectRights || null;
-    } catch (error) {
-      console.warn('Could not access data subject rights service:', error);
-      return null;
-    }
-  };
-  
-  // Get the storage instance to check actual initialization status
-  const getInstanceRaw = usePluginService('storage', 'getInstance');
-  const getInstance = isStorageInstalled ? getInstanceRaw : null;
-
-  // Calculate if storage is initialized based on actual plugin instance status
-  const isInitialized = React.useMemo(() => {
-    if (!isStorageInstalled || !getInstance) return false;
-    
-    try {
-      const instance = getInstance();
-      if (!instance) return false;
-      
-      if (typeof instance.isInitialized === 'function') {
-        return instance.isInitialized();
-      } else if (typeof instance.isInitialized === 'boolean') {
-        return instance.isInitialized;
-      }
-      
-      return !!(instance.create && instance.read && instance.update && instance.delete);
-    } catch (error) {
-      console.warn('Error checking storage instance initialization:', error);
-      return false;
-    }
-  }, [isStorageInstalled, getInstance]);
-  
-  const storage = {
-    isInitialized,
-    create,
-    read,
-    update,
-    delete: deleteEntity,
-    query,
-    clear,
-    count,
-    createMany,
-    findAll,
-    findById,
-    grantConsent,
-    revokeConsent,
-    checkConsent,
-    getConsentStatus,
-    exportUserData,
-    getInstance
-  };
-  
-  // Show loading state if storage manager is enabled but not initialized
-  const isStorageLoading = useStorageManager && !storage.isInitialized;
-  
-  // Storage manager configuration - called once during initialization
-  const configureStorageManager = React.useCallback(async (forceEnable?: boolean) => {
-    if (!forceEnable && !useStorageManager) return null;
-    
-    // Check if storage services are available
-    const isAvailable = storage.isInitialized && storage.query && storage.create;
-    
-    // The storage plugin is already configured during its initialization
-    // We just need to verify it's available
-    return isAvailable;
-  }, [useStorageManager, storage]);
-
-  // Storage manager toggle handler
-  const handleStorageManagerToggle = async (enableStorageManager: boolean) => {
-    try {
-      // Store the desired mode in sessionStorage
-      sessionStorage.setItem('useStorageManager', enableStorageManager.toString());
-      
-      // Update both local and parent state immediately - the useEffect will handle plugin reconfiguration
-      setUseStorageManager(enableStorageManager);
-      
-      console.log(`🔄 Storage Manager ${enableStorageManager ? 'enabled' : 'disabled'} - plugin will reconfigure automatically`);
-      
-      // Refresh the current tab data after a brief delay to allow plugin reconfiguration
-      setTimeout(() => {
-        refreshAllData();
-      }, 500);
-    } catch (error) {
-      console.error('Failed to toggle storage manager:', error);
-    }
-  };
-  
   const [installedPlugins, setInstalledPlugins] = React.useState<Array<{id: string, name: string}>>([]);
-  const [activeTab, setActiveTab] = React.useState<string>(() => {
-    // Restore active tab from sessionStorage if available
-    const savedTab = sessionStorage.getItem('activeTab');
-    return savedTab || '';
-  });
+  const [activeTab, setActiveTab] = React.useState<string>('');
   const [showEventsModal, setShowEventsModal] = React.useState(false);
   const [recentEvents, setRecentEvents] = React.useState<Array<{event: string, data: any, timestamp: Date, pluginId?: string}>>([]);
   const { showSuccess, showInfo, showWarning } = useToast();
@@ -222,12 +101,17 @@ const DemoContent: React.FC<{
   const localDB = import.meta.env.VITE_LOCAL_DB || 'plugin_test';
   const localTable = import.meta.env.VITE_LOCAL_TABLE || 'tables';
 
-  // GDPR Enhancement State - tied to actual GDPR mode
-  const gdprEnabled = useGDPRMode;
+  // GDPR Enhancement State
+  const [gdprEnabled, setGdprEnabled] = React.useState(true);
+  const [encryptionEnabled, setEncryptionEnabled] = React.useState(true);
+  const [auditEnabled, setAuditEnabled] = React.useState(true);
+  const [dataRetentionDays, setDataRetentionDays] = React.useState(365);
   const [gdprOperations, setGdprOperations] = React.useState<Array<{operation: string, timestamp: Date, details: string, userId?: string}>>([]);
   const [userConsents, setUserConsents] = React.useState<Record<string, {purpose: string, granted: boolean, timestamp: Date}>>({});
   const [dataInventory, setDataInventory] = React.useState<Array<{type: string, count: number, encrypted: boolean, lastAccessed: Date}>>([]);
   const [showDataItemsModal, setShowDataItemsModal] = React.useState(false);
+
+  // Storage Manager State - now passed as props
   
   // Sample posts for community plugin (existing mock data) - with fixed dates in the past
   const samplePosts = [
@@ -1104,103 +988,79 @@ const DemoContent: React.FC<{
         createdAt: post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt
       }));
 
-      const tableKey = 'posts';
-
-      if (storageBackend === 'indexeddb') {
-        const db = await initializeIndexedDB();
-        
-        const transaction = db.transaction(['posts'], 'readwrite');
-        const store = transaction.objectStore('posts');
-        
-        // Clear existing data first
+      // Core functions always use legacy mode (no storage manager)
+      const db = await initializeIndexedDB();
+      const transaction = db.transaction(['posts'], 'readwrite');
+      const store = transaction.objectStore('posts');
+      
+      // Clear existing data first
+      await new Promise<void>((resolve, reject) => {
+        const clearRequest = store.clear();
+        clearRequest.onsuccess = () => resolve();
+        clearRequest.onerror = () => reject(clearRequest.error);
+      });
+      
+      // Add each post individually
+      for (const post of serializedData) {
         await new Promise<void>((resolve, reject) => {
-          const clearRequest = store.clear();
-          clearRequest.onsuccess = () => resolve();
-          clearRequest.onerror = () => reject(clearRequest.error);
+          const putRequest = store.put(post);
+          putRequest.onsuccess = () => resolve();
+          putRequest.onerror = () => reject(putRequest.error);
         });
-        
-        // Add each post individually
-        for (const post of serializedData) {
-          await new Promise<void>((resolve, reject) => {
-            const putRequest = store.put(post);
-            putRequest.onsuccess = () => resolve();
-            putRequest.onerror = () => reject(putRequest.error);
-          });
-        }
-        
-        db.close();
       }
+      
+      db.close();
     } catch (error) {
-      console.error(`Failed to save posts to ${storageBackend}:`, error);
+      console.error('Failed to save posts:', error);
     }
   };
 
   const loadPostsFromStorage = async (): Promise<any[]> => {
     try {
-      const tableKey = 'posts';
-
-      if (storageBackend === 'indexeddb') {
-        const db = await initializeIndexedDB();
-        
-        const transaction = db.transaction(['posts'], 'readonly');
-        const store = transaction.objectStore('posts');
-        
-        // Get all posts from the separate posts store
-        const result = await new Promise<any[]>((resolve, reject) => {
-          const getAllRequest = store.getAll();
-          getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-          getAllRequest.onerror = () => reject(getAllRequest.error);
-        });
-        
-        db.close();
-        
-        if (result && result.length > 0) {
-          return result.map((post: any) => ({
-            ...post,
-            createdAt: post.createdAt ? new Date(post.createdAt) : new Date()
-          }));
-        }
-      }
+      // Core functions always use legacy mode (no storage manager)
+      const db = await initializeIndexedDB();
+      const transaction = db.transaction(['posts'], 'readonly');
+      const store = transaction.objectStore('posts');
+      
+      // Get all posts from the posts store
+      const result = await new Promise<any[]>((resolve, reject) => {
+        const getAllRequest = store.getAll();
+        getAllRequest.onsuccess = () => resolve(getAllRequest.result || []);
+        getAllRequest.onerror = () => reject(getAllRequest.error);
+      });
+      
+      db.close();
+      
+      return result.map((post: any) => ({
+        ...post,
+        createdAt: post.createdAt ? new Date(post.createdAt) : new Date()
+      }));
     } catch (error) {
-      console.error(`Failed to load posts from ${storageBackend}:`, error);
+      console.error('Failed to load posts:', error);
+      return [];
     }
-    return []; // Return empty array when no data in storage
   };
 
   // User likes tracking - GDPR Enhanced
   const loadUserLikes = async (): Promise<Set<string>> => {
     try {
-    if (useStorageManager) {
-      // Storage manager mode - use existing storage instance
-      // Using storage object directly
-      if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
-      const allLikes = await storage.findAll(EntityType.USER_LIKES);
-      const userLikesArray = allLikes.filter((like: any) => like.userId === mockUser.id);
-      console.log(`📊 Loaded ${userLikesArray.length} likes for user ${mockUser.id} via storage manager`);
-      const likeIds = userLikesArray.map((like: any) => like.postId || like.targetId);
-      return new Set(likeIds);
-    } else if (storageBackend === 'indexeddb') {
-      // Non-GDPR mode - use regular storage with standardized naming
-      const tableKey = 'user_likes';      
-        const db = await initializeIndexedDB();
-        
-        const transaction = db.transaction(['user_likes'], 'readonly');
-        const store = transaction.objectStore('user_likes');
-        
-        const result = await new Promise<any>((resolve, reject) => {
-          const getRequest = store.get('current-user');
-          getRequest.onsuccess = () => resolve(getRequest.result);
-          getRequest.onerror = () => reject(getRequest.error);
-        });
-        
-        db.close();
-        
-        if (result && result.likes) {
-          return new Set(result.likes);
-        }
+      const db = await initializeIndexedDB();
+      const transaction = db.transaction(['user_likes'], 'readonly');
+      const store = transaction.objectStore('user_likes');
+      
+      const result = await new Promise<any>((resolve, reject) => {
+        const getRequest = store.get('current-user');
+        getRequest.onsuccess = () => resolve(getRequest.result);
+        getRequest.onerror = () => reject(getRequest.error);
+      });
+      
+      db.close();
+      
+      if (result && result.likes) {
+        return new Set(result.likes);
       }
     } catch (error) {
-      console.error(`Failed to load user likes from ${storageBackend}:`, error);
+      console.error('Failed to load user likes:', error);
     }
     return new Set();
   };
@@ -1209,50 +1069,19 @@ const DemoContent: React.FC<{
     try {
       const likesArray = Array.from(likes);
       
-    if (useStorageManager) {
-      // Storage manager mode - use existing storage instance
-      // Using storage object directly
-      if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
+      const db = await initializeIndexedDB();
+      const transaction = db.transaction(['user_likes'], 'readwrite');
+      const store = transaction.objectStore('user_likes');
       
-        // Delete existing likes for this user
-        const userLikesEntityType = EntityType.USER_LIKES;
-        const existingLikes = await storage.findAll(userLikesEntityType);
-        const userLikes = existingLikes.filter((like: any) => like.userId === mockUser.id);
-        
-        await Promise.all(userLikes.map(like => 
-          storage.delete(userLikesEntityType, like.id)
-        ));
-        
-        // Add new likes (convert Set to Array with user ID)
-        const likesArray = Array.from(likes).map(postId => ({
-          id: `${mockUser.id}_${postId}`,
-          userId: mockUser.id,
-          postId,
-          timestamp: new Date().toISOString()
-        }));
-        await storage.createMany(EntityType.USER_LIKES, likesArray);
-        console.log(`✅ Saved ${likes.length} likes for user ${mockUser.id} via storage manager`);
-      } else if (storageBackend === 'indexeddb') {
-        // Non-GDPR mode - use regular storage with standardized naming
-        const tableKey = 'user_likes';
-        
-        if (storageBackend === 'indexeddb') {
-          const db = await initializeIndexedDB();
-          
-          const transaction = db.transaction(['user_likes'], 'readwrite');
-          const store = transaction.objectStore('user_likes');
-          
-          await new Promise((resolve, reject) => {
-            const putRequest = store.put({ id: 'current-user', likes: likesArray, updatedAt: new Date().toISOString() });
-            putRequest.onsuccess = () => resolve(undefined);
-            putRequest.onerror = () => reject(putRequest.error);
-          });
-          
-          db.close();
-        }
-      }
+      await new Promise((resolve, reject) => {
+        const putRequest = store.put({ id: 'current-user', likes: likesArray, updatedAt: new Date().toISOString() });
+        putRequest.onsuccess = () => resolve(undefined);
+        putRequest.onerror = () => reject(putRequest.error);
+      });
+      
+      db.close();
     } catch (error) {
-      console.error(`Failed to save user likes to ${storageBackend}:`, error);
+      console.error('Failed to save user likes:', error);
     }
   };
 
@@ -1273,28 +1102,16 @@ const DemoContent: React.FC<{
         // Storage Manager mode - save via storage plugin
         console.log(`Saving ${tableName.slice(0, -1)} ${comment.id} via Storage Manager`);
         
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         
         // Use appropriate EntityType based on comment type
         const entityType = comment.parentId ? EntityType.REPLIES : EntityType.COMMENTS;
+        await storage.create(entityType, serializedComment);
         
-        // Try to find existing entity first
-        try {
-          const existing = await storage.findById(entityType, comment.id);
-          if (existing) {
-            // Update existing entity
-            await storage.update(entityType, comment.id, serializedComment);
-          } else {
-            // Create new entity
-            await storage.create(entityType, serializedComment);
-          }
-        } catch (error) {
-          // If findById fails, try to create (entity doesn't exist)
-          await storage.create(entityType, serializedComment);
-        }
-        
-      } else if (storageBackend === 'indexeddb') {
+        updateDataInventory(tableName, 1);
+        await logGdprOperation('DATA_STORED', `Saved ${tableName.slice(0, -1)} ${comment.id} via storage manager`, 'system');
+      } else {
         // Legacy mode - save to indexedDB only
         const storeName = tableName;
         
@@ -1326,7 +1143,7 @@ const DemoContent: React.FC<{
         // Storage Manager mode - load via storage plugin
         console.log(`Loading comments and replies for post ${postId} via Storage Manager`);
         
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         
         // Load comments and replies via storage plugin
@@ -1336,7 +1153,8 @@ const DemoContent: React.FC<{
         const allReplies = await storage.findAll(EntityType.REPLIES);
         replies = allReplies.filter((reply: any) => reply.postId === postId);
         
-     } else if (storageBackend === 'indexeddb') {
+        await logGdprOperation('DATA_ACCESSED', `Loaded ${comments.length} comments and ${replies.length} replies for post ${postId} via storage manager`, 'system');
+      } else {
         // Legacy mode - load from indexedDB only
         const db = await initializeIndexedDB();
         
@@ -1412,14 +1230,15 @@ const DemoContent: React.FC<{
       
       if (useStorageManager) {
         // Storage Manager mode - delete via storage plugin
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         
         // Use appropriate EntityType based on comment type
         const entityType = isReply ? EntityType.REPLIES : EntityType.COMMENTS;
         await storage.delete(entityType, commentId);
         
-     } else  if (storageBackend === 'indexeddb') {
+        await logGdprOperation('DATA_DELETED', `Deleted ${tableName.slice(0, -1)} ${commentId} via storage manager`, 'system');
+      } else {
         // Legacy mode - delete from indexedDB only
         const storeName = tableName;
         
@@ -1444,60 +1263,43 @@ const DemoContent: React.FC<{
   const storageBackend = parentStorageBackend;
   const setStorageBackend = setParentStorageBackend;
   
-  // GDPR Storage System State - synced with GDPR enabled state
-  const [useGDPRStorage, setUseGDPRStorage] = React.useState(gdprEnabled);
-
-  // Keep GDPR Storage in sync with GDPR enabled state
-  React.useEffect(() => {
-    setUseGDPRStorage(gdprEnabled);
-  }, [gdprEnabled]);
+  // GDPR Storage functionality is now handled by storage plugin
 
   // Centralized IndexedDB initialization
   const initializeIndexedDB = async (): Promise<IDBDatabase> => {
     return new Promise<IDBDatabase>((resolve, reject) => {
-      // First, try to open the database without specifying version to get current version
-      const versionRequest = indexedDB.open(localDB);
+      const request = indexedDB.open(localDB, 5); // Use version 5 for separate table structure
       
-      versionRequest.onsuccess = () => {
-        const currentVersion = versionRequest.result.version;
-        versionRequest.result.close();
+      request.onsuccess = () => {
+        const db = request.result;
+        // Check if the required object stores exist (both regular and GDPR)
+        const requiredStores = [
+          'courses', 'events', 'members', 'posts', 'products', 'user_likes', 'comments', 'replies',
+          'gdpr_courses', 'gdpr_events', 'gdpr_members', 'gdpr_posts', 'gdpr_products', 'gdpr_user_likes', 'gdpr_comments', 'gdpr_replies'
+        ];
+        const missingStores = requiredStores.filter(store => !db.objectStoreNames.contains(store));
         
-        // Now open with the current version
-        const request = indexedDB.open(localDB, currentVersion);
-        
-        request.onsuccess = () => {
-          const db = request.result;
-          // Check if the required object stores exist (both regular and GDPR)
-          const requiredStores = [
-            'courses', 'events', 'members', 'posts', 'products', 'user_likes', 'comments', 'replies'
-          ];
-          const missingStores = requiredStores.filter(store => !db.objectStoreNames.contains(store));
-          
-          if (missingStores.length > 0) {
-            // Close and create new version with required stores
-            db.close();
-            const upgradeRequest = indexedDB.open(localDB, currentVersion + 1);
-            upgradeRequest.onsuccess = () => resolve(upgradeRequest.result);
-            upgradeRequest.onerror = () => reject(upgradeRequest.error);
-            upgradeRequest.onupgradeneeded = createStores;
-          } else {
-            resolve(db);
-          }
-        };
-      
-        request.onerror = () => reject(request.error);
+        if (missingStores.length > 0) {
+          // Close and delete database to force recreation with new structure
+          db.close();
+          const deleteRequest = indexedDB.deleteDatabase(localDB);
+          deleteRequest.onsuccess = () => {
+            // Reopen with separate tables
+            const newRequest = indexedDB.open(localDB, 5);
+            newRequest.onsuccess = () => resolve(newRequest.result);
+            newRequest.onerror = () => reject(newRequest.error);
+            newRequest.onupgradeneeded = createStores;
+          };
+          deleteRequest.onerror = () => reject(deleteRequest.error);
+        } else {
+          resolve(db);
+        }
       };
       
-      versionRequest.onerror = () => {
-        // Database doesn't exist, create it with version 1
-        const createRequest = indexedDB.open(localDB, 1);
-        createRequest.onsuccess = () => resolve(createRequest.result);
-        createRequest.onerror = () => reject(createRequest.error);
-        createRequest.onupgradeneeded = createStores;
-      };
+      request.onerror = () => reject(request.error);
       
-      const createStores = (event: any) => {
-        const db = event.target.result;
+      const createStores = () => {
+        const db = request.result;
         
         // Create separate object stores for each data type (both regular and GDPR)
         const storeConfigs = [
@@ -1510,6 +1312,15 @@ const DemoContent: React.FC<{
           { name: 'user_likes', keyPath: 'id' },
           { name: 'comments', keyPath: 'id' },
           { name: 'replies', keyPath: 'id' },
+          // GDPR stores
+          { name: 'gdpr_courses', keyPath: 'id' },
+          { name: 'gdpr_events', keyPath: 'id' },
+          { name: 'gdpr_members', keyPath: 'id' },
+          { name: 'gdpr_posts', keyPath: 'id' },
+          { name: 'gdpr_products', keyPath: 'id' },
+          { name: 'gdpr_user_likes', keyPath: 'id' },
+          { name: 'gdpr_comments', keyPath: 'id' },
+          { name: 'gdpr_replies', keyPath: 'id' }
         ];
         
         storeConfigs.forEach(config => {
@@ -1518,97 +1329,98 @@ const DemoContent: React.FC<{
           }
         });
       };
+      
+      request.onupgradeneeded = createStores;
     });
   };
 
   // Additional storage functions for other data types
   const saveMembers = async (data: any[]) => {
     try {
-      if (storageBackend === 'indexeddb') {
-        const db = await initializeIndexedDB();
-        const transaction = db.transaction(['members'], 'readwrite');
-        const store = transaction.objectStore('members');
-        
-        // Clear existing data first
+      // Core functions always use legacy mode (no storage manager)
+      const db = await initializeIndexedDB();
+      const transaction = db.transaction(['members'], 'readwrite');
+      const store = transaction.objectStore('members');
+      
+      // Clear existing data first
+      await new Promise((resolve, reject) => {
+        const clearRequest = store.clear();
+        clearRequest.onsuccess = () => resolve(undefined);
+        clearRequest.onerror = () => reject(clearRequest.error);
+      });
+      
+      // Add each member individually using their ID as key
+      for (const member of data) {
         await new Promise((resolve, reject) => {
-          const clearRequest = store.clear();
-          clearRequest.onsuccess = () => resolve(undefined);
-          clearRequest.onerror = () => reject(clearRequest.error);
+          const putRequest = store.put(member);
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
         });
-        
-        // Add each member individually using their ID as key
-        for (const member of data) {
-          await new Promise((resolve, reject) => {
-            const putRequest = store.put(member);
-            putRequest.onsuccess = () => resolve(undefined);
-            putRequest.onerror = () => reject(putRequest.error);
-          });
-        }
-        
-        db.close();
       }
+      
+      db.close();
     } catch (error) {
-      console.error(`Failed to save members to ${storageBackend}:`, error);
+      console.error('Failed to save members:', error);
     }
   };
 
   const loadMembers = async (): Promise<any[]> => {
     try {
-    if (useStorageManager) {
-      // Storage manager mode
-      // Using storage object directly
+      if (useStorageManager) {
+        // Storage manager mode
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available');
+        
         const members = await storage.findAll(EntityType.MEMBERS);
         console.log(`📊 Loaded ${members.length} members via storage manager`);
         return members;
-      } else if (storageBackend === 'indexeddb') {
+      } else {
+        // Legacy mode: indexedDB only
         const db = await initializeIndexedDB();
         const transaction = db.transaction(['members'], 'readonly');
         const store = transaction.objectStore('members');
         
-        // Get all records from the members store
         const result = await new Promise<any[]>((resolve, reject) => {
-          const getAllRequest = store.getAll();
-          getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-          getAllRequest.onerror = () => reject(getAllRequest.error);
+          const request = store.getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error);
         });
         
         db.close();
-        return result || [];
+        return result;
       }
     } catch (error) {
-      console.error(`Failed to load members from ${storageBackend}:`, error);
+      console.error('Failed to load members:', error);
+      return [];
     }
-    return [];
   };
 
   const saveProducts = async (data: any[]) => {
     try {
-      if (storageBackend === 'indexeddb') {
-        const db = await initializeIndexedDB();
-        const transaction = db.transaction(['products'], 'readwrite');
-        const store = transaction.objectStore('products');
-        
-        // Clear existing data first
+      // Core functions always use legacy mode (no storage manager)
+      const db = await initializeIndexedDB();
+      const transaction = db.transaction(['products'], 'readwrite');
+      const store = transaction.objectStore('products');
+      
+      // Clear existing data first
+      await new Promise((resolve, reject) => {
+        const clearRequest = store.clear();
+        clearRequest.onsuccess = () => resolve(undefined);
+        clearRequest.onerror = () => reject(clearRequest.error);
+      });
+      
+      // Add each product individually using their ID as key
+      for (const product of data) {
         await new Promise((resolve, reject) => {
-          const clearRequest = store.clear();
-          clearRequest.onsuccess = () => resolve(undefined);
-          clearRequest.onerror = () => reject(clearRequest.error);
+          const putRequest = store.put(product);
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
         });
-        
-        // Add each product individually using their ID as key
-        for (const product of data) {
-          await new Promise((resolve, reject) => {
-            const putRequest = store.put(product);
-            putRequest.onsuccess = () => resolve(undefined);
-            putRequest.onerror = () => reject(putRequest.error);
-          });
-        }
-        
-        db.close();
       }
+      
+      db.close();
     } catch (error) {
-      console.error(`Failed to save products to ${storageBackend}:`, error);
+      console.error('Failed to save products:', error);
     }
   };
 
@@ -1616,59 +1428,59 @@ const DemoContent: React.FC<{
     try {
       if (useStorageManager) {
         // Storage manager mode
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available');
+        
         const products = await storage.findAll(EntityType.PRODUCTS);
         console.log(`📊 Loaded ${products.length} products via storage manager`);
         return products;
-      } else if (storageBackend === 'indexeddb') {
+      } else {
+        // Legacy mode: indexedDB only
         const db = await initializeIndexedDB();
         const transaction = db.transaction(['products'], 'readonly');
         const store = transaction.objectStore('products');
         
-        // Get all records from the products store
         const result = await new Promise<any[]>((resolve, reject) => {
-          const getAllRequest = store.getAll();
-          getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-          getAllRequest.onerror = () => reject(getAllRequest.error);
+          const request = store.getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error);
         });
         
         db.close();
-        return result || [];
+        return result;
       }
     } catch (error) {
-      console.error(`Failed to load products from ${storageBackend}:`, error);
+      console.error('Failed to load products:', error);
+      return [];
     }
-    return [];
   };
 
   const saveEvents = async (data: any[]) => {
     try {
-      if (storageBackend === 'indexeddb') {
-        const db = await initializeIndexedDB();
-        const transaction = db.transaction(['events'], 'readwrite');
-        const store = transaction.objectStore('events');
-        
-        // Clear existing data first
+      // Core functions always use legacy mode (no storage manager)
+      const db = await initializeIndexedDB();
+      const transaction = db.transaction(['events'], 'readwrite');
+      const store = transaction.objectStore('events');
+      
+      // Clear existing data first
+      await new Promise((resolve, reject) => {
+        const clearRequest = store.clear();
+        clearRequest.onsuccess = () => resolve(undefined);
+        clearRequest.onerror = () => reject(clearRequest.error);
+      });
+      
+      // Add each event individually using their ID as key
+      for (const event of data) {
         await new Promise((resolve, reject) => {
-          const clearRequest = store.clear();
-          clearRequest.onsuccess = () => resolve(undefined);
-          clearRequest.onerror = () => reject(clearRequest.error);
+          const putRequest = store.put(event);
+          putRequest.onsuccess = () => resolve(undefined);
+          putRequest.onerror = () => reject(putRequest.error);
         });
-        
-        // Add each event individually using their ID as key
-        for (const event of data) {
-          await new Promise((resolve, reject) => {
-            const putRequest = store.put(event);
-            putRequest.onsuccess = () => resolve(undefined);
-            putRequest.onerror = () => reject(putRequest.error);
-          });
-        }
-        
-        db.close();
       }
+      
+      db.close();
     } catch (error) {
-      console.error(`Failed to save events to ${storageBackend}:`, error);
+      console.error('Failed to save events:', error);
     }
   };
 
@@ -1676,31 +1488,31 @@ const DemoContent: React.FC<{
     try {
       if (useStorageManager) {
         // Storage manager mode
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available');
         
         const events = await storage.findAll(EntityType.EVENTS);
         console.log(`📊 Loaded ${events.length} events via storage manager`);
         return events;
-      } else if (storageBackend === 'indexeddb') {
+      } else {
+        // Legacy mode: indexedDB only
         const db = await initializeIndexedDB();
         const transaction = db.transaction(['events'], 'readonly');
         const store = transaction.objectStore('events');
         
-        // Get all records from the events store
         const result = await new Promise<any[]>((resolve, reject) => {
-          const getAllRequest = store.getAll();
-          getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-          getAllRequest.onerror = () => reject(getAllRequest.error);
+          const request = store.getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error);
         });
         
         db.close();
-        return result || [];
+        return result;
       }
     } catch (error) {
-      console.error(`Failed to load events from ${storageBackend}:`, error);
+      console.error('Failed to load events:', error);
+      return [];
     }
-    return [];
   };
 
   // Mock data states for storage-agnostic plugins
@@ -3308,11 +3120,9 @@ const DemoContent: React.FC<{
   // Storage backend functions
   const saveToStorage = async (data: any[]) => {
     switch (storageBackend) {
-
-      case 'indexeddb':
-        // Use new separate stores structure
+      case 'indexedDB':
+        // Core functions always use legacy mode (no storage manager)
         const db = await initializeIndexedDB();
-        
         const transaction = db.transaction(['courses'], 'readwrite');
         const store = transaction.objectStore('courses');
         
@@ -3348,24 +3158,22 @@ const DemoContent: React.FC<{
   
   const loadFromStorage = async (): Promise<any[]> => {
     switch (storageBackend) {
-      case 'indexeddb':
-        // Use real IndexedDB
+      case 'indexedDB':
+        // Core functions always use legacy mode (no storage manager)
         try {
           const db = await initializeIndexedDB();
-          
           const transaction = db.transaction(['courses'], 'readonly');
           const store = transaction.objectStore('courses');
           
-          // Get all courses from the separate courses store
+          // Get all courses from the courses store
           const result = await new Promise<any[]>((resolve, reject) => {
             const getAllRequest = store.getAll();
-            getAllRequest.onsuccess = () => resolve(getAllRequest.result);
+            getAllRequest.onsuccess = () => resolve(getAllRequest.result || []);
             getAllRequest.onerror = () => reject(getAllRequest.error);
           });
           
           db.close();
-          
-          return result || [];
+          return result;
         } catch (error) {
           console.error('Failed to load courses from IndexedDB:', error);
           return [];
@@ -3381,12 +3189,20 @@ const DemoContent: React.FC<{
   };
   
   const handleStorageBackendChange = async (newBackend: typeof storageBackend) => {
+    // GDPR Logging
+    logGdprOperation('STORAGE_SWITCH', 
+      `From ${storageBackend} to ${newBackend}, ${courses.length} courses, Encrypted: ${encryptionEnabled}`);
     
     // Save current data to new backend
     if (courses.length > 0) {
       setStorageBackend(newBackend);
       // Simulate migration
       await saveCoursesToStorageEnhanced(courses);
+      
+      // Update data inventory for migration
+      updateDataInventory('courses', courses.length, encryptionEnabled);
+      updateDataInventory('posts', posts.length, encryptionEnabled);
+      updateDataInventory('comments', sampleComments.length, encryptionEnabled);
       
       showInfo('Storage Switched', `Data migrated to ${newBackend}. ${courses.length} courses preserved.`);
     } else {
@@ -3395,6 +3211,7 @@ const DemoContent: React.FC<{
       const loadedCourses = await loadFromStorage();
       setCourses(loadedCourses);
       if (loadedCourses.length > 0) {
+        updateDataInventory('courses', loadedCourses.length, encryptionEnabled);
         showSuccess('Data Loaded', `Loaded ${loadedCourses.length} courses from ${newBackend}.`);
       }
     }
@@ -3410,13 +3227,6 @@ const DemoContent: React.FC<{
   const handleReseedFromMock = React.useCallback(async () => {
     if (!reseedFromMock) return;
     
-    // Check if storage manager is enabled but not initialized
-    if (useStorageManager && !isInitialized) {
-      console.warn('Storage manager not initialized, skipping reseed operation');
-      setReseedFromMock(false); // Reset checkbox
-      return;
-    }
-    
     try {
       setLoading(true);
       
@@ -3427,36 +3237,55 @@ const DemoContent: React.FC<{
       const shouldReseedEvents = activeTab === 'calendar';
       const shouldReseedCourses = activeTab === 'classroom' || activeTab === 'course-builder';
       
-      // Clear specific storage keys based on active tab - only clear the current storage mode (GDPR vs non-GDPR)
-      
-      if (storageBackend === 'indexeddb') {
-        // For IndexedDB, clear specific object stores based on active tab and GDPR mode
+      if (useStorageManager) {
+        // Storage manager mode: clear via storage manager
+        try {
+          const storage = useStoragePlugin();
+          if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
+          
+          // Clear data using storage manager
+          if (shouldReseedPosts) {
+            await storage.clear(EntityType.POSTS);
+            await storage.clear(EntityType.COMMENTS);
+            await storage.clear(EntityType.USER_LIKES);
+          }
+          if (shouldReseedMembers) {
+            await storage.clear(EntityType.MEMBERS);
+          }
+          if (shouldReseedProducts) {
+            await storage.clear(EntityType.PRODUCTS);
+          }
+          if (shouldReseedEvents) {
+            await storage.clear(EntityType.EVENTS);
+          }
+          if (shouldReseedCourses) {
+            await storage.clear(EntityType.COURSES);
+          }
+          
+          console.log('✅ Cleared storage via storage manager');
+        } catch (error) {
+          console.warn('Error clearing storage via storage manager:', error);
+        }
+      } else {
+        // Legacy mode: clear IndexedDB directly
         try {
           const db = await initializeIndexedDB();
           const storesToClear: string[] = [];
           
-          // Choose the right stores based on GDPR mode
-          const storePrefix = '';
-          
           if (shouldReseedPosts) {
-            storesToClear.push(
-              `${storePrefix}posts`,
-              `${storePrefix}comments`, 
-              `${storePrefix}replies`, 
-              `${storePrefix}user_likes`
-            );
+            storesToClear.push('posts', 'comments', 'user_likes');
           }
           if (shouldReseedMembers) {
-            storesToClear.push(`${storePrefix}members`);
+            storesToClear.push('members');
           }
           if (shouldReseedProducts) {
-            storesToClear.push(`${storePrefix}products`);
+            storesToClear.push('products');
           }
           if (shouldReseedEvents) {
-            storesToClear.push(`${storePrefix}events`);
+            storesToClear.push('events');
           }
           if (shouldReseedCourses) {
-            storesToClear.push(`${storePrefix}courses`);
+            storesToClear.push('courses');
           }
           
           // Clear each relevant object store
@@ -3475,89 +3304,46 @@ const DemoContent: React.FC<{
           }
           
           db.close();
+          console.log('✅ Cleared legacy storage');
         } catch (error) {
-          console.warn('Error clearing IndexedDB:', error);
+          console.warn('Error clearing legacy storage:', error);
         }
       }
       
-      // Clear storage manager data if using storage manager
-      if (useStorageManager && storage.isInitialized && storage.clear) {
-        try {
-          if (shouldReseedPosts) {
-            // Clear posts, comments, replies, and user likes from storage manager
-            await storage.clear(EntityType.POSTS);
-            await storage.clear(EntityType.COMMENTS);
-            await storage.clear(EntityType.REPLIES);
-            await storage.clear(EntityType.USER_LIKES);
-          }
-          if (shouldReseedMembers) {
-            await storage.clear(EntityType.MEMBERS);
-          }
-          if (shouldReseedProducts) {
-            await storage.clear(EntityType.PRODUCTS);
-          }
-          if (shouldReseedEvents) {
-            await storage.clear(EntityType.EVENTS);
-          }
-          if (shouldReseedCourses) {
-            await storage.clear(EntityType.COURSES);
-          }
-        } catch (error) {
-          console.warn('Error clearing storage manager data:', error);
-        }
-      } else if (useStorageManager && !storage?.isInitialized) {
-        console.warn('Storage manager not initialized, skipping clear operations');
-      }
-
       // Reset state and save data based on active tab
-      // Only proceed with save operations if storage is properly initialized (when using storage manager)
-      if (useStorageManager && !storage?.isInitialized) {
-        console.warn('Storage manager not initialized, skipping save operations. Only updating UI state.');
-        // Update UI state but skip storage operations
-        if (shouldReseedPosts) {
-          setPosts(samplePosts);
-          setUserLikes(new Set());
-        }
-        if (shouldReseedMembers) setMembers(sampleMembers);
-        if (shouldReseedProducts) setProducts(sampleProducts);
-        if (shouldReseedEvents) setEvents(sampleEvents);
-        if (shouldReseedCourses) setCourses([]);
-      } else {
-        // Storage is initialized or not using storage manager - proceed normally
-        if (shouldReseedCourses) {
-          setCourses([]);
-          await saveCoursesToStorageEnhanced([]);
-        }
+      if (shouldReseedCourses) {
+        setCourses([]);
+        await saveCoursesToStorageEnhanced([]);
+      }
+      
+      if (shouldReseedPosts) {
+        // Set posts in state and save using standardized storage
+        setPosts(samplePosts);
+        await savePostsToStorageEnhanced(samplePosts);
         
-        if (shouldReseedPosts) {
-          // Set posts in state and save using standardized storage
-          setPosts(samplePosts);
-          await savePostsToStorageEnhanced(samplePosts);
-          
-          // Reset user likes and save using standardized storage  
-          setUserLikes(new Set());
-          await saveUserLikes(new Set());
-          
-          // Save sample comments using the standardized comment storage
-          for (const comment of sampleComments) {
-            await saveCommentToStorageEnhanced(comment);
-          }
-        }
+        // Reset user likes and save using standardized storage  
+        setUserLikes(new Set());
+        await saveUserLikes(new Set());
         
-        if (shouldReseedMembers) {
-          setMembers(sampleMembers);
-          await saveMembersToStorageEnhanced(sampleMembers);
+        // Save sample comments using the standardized comment storage
+        for (const comment of sampleComments) {
+          await saveCommentToStorageEnhanced(comment);
         }
-        
-        if (shouldReseedProducts) {
-          setProducts(sampleProducts);
-          await saveProductsToStorageEnhanced(sampleProducts);
-        }
-        
-        if (shouldReseedEvents) {
-          setEvents(sampleEvents);
-          await saveEventsToStorageEnhanced(sampleEvents);
-        }
+      }
+      
+      if (shouldReseedMembers) {
+        setMembers(sampleMembers);
+        await saveMembersToStorageEnhanced(sampleMembers);
+      }
+      
+      if (shouldReseedProducts) {
+        setProducts(sampleProducts);
+        await saveProductsToStorageEnhanced(sampleProducts);
+      }
+      
+      if (shouldReseedEvents) {
+        setEvents(sampleEvents);
+        await saveEventsToStorageEnhanced(sampleEvents);
       }
       
       // Reset checkbox
@@ -3572,7 +3358,8 @@ const DemoContent: React.FC<{
       if (shouldReseedCourses) dataTypes.push('courses');
       
       const dataTypeText = dataTypes.length > 0 ? dataTypes.join(', ') : 'no data';
-      showSuccess('Data Reseeded', `Cleared ${storageBackend} and reloaded ${dataTypeText} from mock data for the ${activeTab} tab.`);
+      const storageMode = useStorageManager ? 'storage manager' : 'indexedDB';
+      showSuccess('Data Reseeded', `Cleared ${storageMode} and reloaded ${dataTypeText} from mock data for the ${activeTab} tab.`);
       
     } catch (error) {
       console.error('Error reseeding data:', error);
@@ -3581,20 +3368,14 @@ const DemoContent: React.FC<{
     } finally {
       setLoading(false);
     }
-  }, [reseedFromMock, storageBackend, showSuccess, showWarning, useStorageManager, storage.isInitialized]);
+  }, [reseedFromMock, useStorageManager, activeTab, showSuccess, showWarning, useStoragePlugin]);
 
   // Handle reseed checkbox changes
   React.useEffect(() => {
     if (reseedFromMock) {
-      // Only proceed if storage is initialized (when using storage manager) or not using storage manager
-      if (useStorageManager && !storage.isInitialized) {
-        console.warn('Storage manager not initialized, skipping reseed operation');
-        setReseedFromMock(false); // Reset checkbox
-        return;
-      }
       handleReseedFromMock();
     }
-  }, [reseedFromMock, handleReseedFromMock, useStorageManager, isInitialized]);
+  }, [reseedFromMock, handleReseedFromMock]);
   
   // Storage-agnostic callback functions with event bus integration
   const handleCreateCourse = async (course: any) => {
@@ -3763,22 +3544,24 @@ const DemoContent: React.FC<{
   };
   
   const handleCreatePost = async (post: any) => {
-    // Check consent for community interaction (GDPR mode only)
-    if (useGDPRMode && storage.checkConsent) {
-      try {
-        const hasConsent = await storage.checkConsent(post.authorId || mockUser.id, 'personalization');
-        if (!hasConsent) {
-          showWarning('Consent Required', 'Please grant consent for personalization to create posts.');
-          return;
-        }
-      } catch (error) {
-        console.warn('Consent check failed, allowing operation:', error);
-      }
+    // Check consent for community interaction
+    const hasConsent = await checkConsent(post.authorId || 'unknown', 'community_interaction');
+    if (!hasConsent && gdprEnabled) {
+      showWarning('Consent Required', 'Please consent to community interaction to create posts.');
+      return;
     }
 
     const newPost = { ...post, id: Date.now().toString(), createdAt: new Date() };
     const updatedPosts = [...posts, newPost];
     setPosts(updatedPosts);
+    
+    // GDPR Logging
+    await logGdprOperation('POST_CREATE', 
+      `Content length: ${post.content?.length || 0} chars, Encrypted: ${encryptionEnabled}`, 
+      post.authorId || 'unknown');
+    
+    // Update data inventory
+    updateDataInventory('posts', updatedPosts.length, encryptionEnabled);
     
     // Save to storage
     await savePostsToStorageEnhanced(updatedPosts);
@@ -3873,17 +3656,11 @@ const DemoContent: React.FC<{
     const post = posts.find((p: any) => p.id === postId);
     const isAlreadyLiked = userLikes.has(postId);
     
-    // Check consent for community interaction (GDPR mode only)
-    if (useGDPRMode && storage.checkConsent) {
-      try {
-        const hasConsent = await storage.checkConsent(mockUser.id, 'personalization');
-        if (!hasConsent) {
-          showWarning('Consent Required', 'Please grant consent for personalization to like posts.');
-          return;
-        }
-      } catch (error) {
-        console.warn('Consent check failed, allowing operation:', error);
-      }
+    // Check consent for community interaction
+    const hasConsent = await checkConsent('user-1', 'community_interaction');
+    if (!hasConsent && gdprEnabled) {
+      showWarning('Consent Required', 'Please consent to community interaction to like posts.');
+      return;
     }
     
     // Toggle like status
@@ -3896,6 +3673,7 @@ const DemoContent: React.FC<{
       updatedPosts = posts.map((post: any) => 
         post.id === postId ? { ...post, likes: Math.max((post.likes || 0) - 1, 0) } : post
       );
+      await logGdprOperation('POST_UNLIKE', `Post: ${postId}`, 'user-1');
       showInfo('Post Unliked!', 'Like removed from post.');
     } else {
       // Like: add to user likes and increase count
@@ -3903,20 +3681,20 @@ const DemoContent: React.FC<{
       updatedPosts = posts.map((post: any) => 
         post.id === postId ? { ...post, likes: (post.likes || 0) + 1 } : post
       );
+      await logGdprOperation('POST_LIKE', `Post: ${postId}`, 'user-1');
       showInfo('Post Liked!', 'Thanks for engaging with the community.');
     }
     
     setUserLikes(newUserLikes);
     setPosts(updatedPosts);
     
+    // Update data inventory
+    updateDataInventory('posts', updatedPosts.length, encryptionEnabled);
+    updateDataInventory('user_likes', newUserLikes.size, encryptionEnabled);
+    
     // Save to storage
-    try {
-      await savePostsToStorageEnhanced(updatedPosts);
-      await saveUserLikes(newUserLikes as Set<string>);
-    } catch (error) {
-      console.error('Failed to save like to storage:', error);
-      // Continue with the UI update even if storage fails
-    }
+    await savePostsToStorageEnhanced(updatedPosts);
+    await saveUserLikes(newUserLikes as Set<string>);
     
     // Emit event
     newEventBus.emit(isAlreadyLiked ? EVENTS.POST_UNLIKED : EVENTS.POST_LIKED, { 
@@ -4070,6 +3848,7 @@ const DemoContent: React.FC<{
       showWarning('Pin Failed', 'Failed to update post pin status. Please try again.');
     }
   };
+
 
   // Toggle comments handler
   const handleToggleCommentsForPost = async (postId: string) => {
@@ -5448,12 +5227,170 @@ const DemoContent: React.FC<{
     theme: customTheme
   } as any;
 
+  // GDPR functionality now handled by storage plugin
+
+  // GDPR Helper Functions (Enhanced with new services)
+  const logGdprOperation = React.useCallback(async (operation: string, details: string, userId?: string) => {
+    if (gdprEnabled && auditEnabled) {
+      setGdprOperations((prev: any) => [...prev.slice(-99), { // Keep last 100 operations
+        operation,
+        timestamp: new Date(),
+        details,
+        userId
+      }]);
+      console.log(`GDPR: ${operation} - ${details}${userId ? ` (User: ${userId})` : ''}`);
+    }
+  }, [gdprEnabled, auditEnabled]);
+
+  const checkConsent = React.useCallback(async (userId: string, purpose: string): Promise<boolean> => {
+    if (!gdprEnabled) return true;
+    const consent = userConsents[`${userId}_${purpose}`];
+    return consent?.granted || false;
+  }, [gdprEnabled, userConsents]);
+
+  const recordConsent = React.useCallback(async (userId: string, purpose: string, granted: boolean) => {
+    if (gdprEnabled) {
+      setUserConsents((prev: any) => ({
+        ...prev,
+        [`${userId}_${purpose}`]: {
+          purpose,
+          granted,
+          timestamp: new Date()
+        }
+      }));
+      
+      await logGdprOperation('CONSENT_RECORDED', `${purpose}: ${granted ? 'granted' : 'denied'}`, userId);
+    }
+  }, [gdprEnabled, logGdprOperation]);
+
+  const updateDataInventory = React.useCallback((type: string, count: number, encrypted?: boolean) => {
+    if (gdprEnabled) {
+      setDataInventory((prev: any) => {
+        const existing = prev.find((item: any) => item.type === type);
+        if (existing) {
+          return prev.map((item: any) => 
+            item.type === type 
+              ? { ...item, count, encrypted: encrypted ?? item.encrypted, lastAccessed: new Date() }
+              : item
+          );
+        } else {
+          return [...prev, { 
+            type, 
+            count, 
+            encrypted: encrypted ?? encryptionEnabled, 
+            lastAccessed: new Date() 
+          }];
+        }
+      });
+    }
+  }, [gdprEnabled, encryptionEnabled]);
+
+  const exportUserData = React.useCallback(async (userId: string) => {
+    if (!gdprEnabled) return null;
+    
+    await logGdprOperation('DATA_EXPORT_REQUEST', 'User requested data export', userId);
+    
+    // Storage manager handles data export automatically when enabled
+    // Local fallback export for all modes
+    
+    // Fallback to local data export
+    const userData = {
+      userId,
+      exportDate: new Date(),
+      courses: courses.filter((course: any) => course.authorId === userId || course.userId === userId),
+      posts: posts.filter((post: any) => post.authorId === userId),
+      likes: Array.from(userLikes).filter(postId => posts.find((p: any) => p.id === postId)?.authorId === userId),
+      consents: Object.entries(userConsents)
+        .filter(([key]) => key.startsWith(userId))
+        .map(([key, value]) => ({ key, ...value })),
+      gdprOperations: gdprOperations.filter((op: any) => op.userId === userId)
+    };
+
+    await logGdprOperation('DATA_EXPORT_COMPLETED', `Exported ${Object.keys(userData).length} data categories`, userId);
+    return userData;
+  }, [gdprEnabled, courses, posts, userLikes, userConsents, gdprOperations, logGdprOperation]);
+
+  const eraseUserData = React.useCallback(async (userId: string, options: {keepEssential?: boolean} = {}) => {
+    if (!gdprEnabled) return null;
+    
+    await logGdprOperation('DATA_ERASURE_REQUEST', `Options: ${JSON.stringify(options)}`, userId);
+    
+    // Storage manager handles data erasure automatically when enabled
+    // Local fallback erasure for all modes
+    
+    // Fallback to local data erasure
+    let erasedCount = 0;
+    let anonymizedCount = 0;
+
+    // Remove user's posts
+    const userPosts = posts.filter((post: any) => post.authorId === userId);
+    if (userPosts.length > 0) {
+      const remainingPosts = posts.filter((post: any) => post.authorId !== userId);
+      setPosts(remainingPosts);
+      erasedCount += userPosts.length;
+      updateDataInventory('posts', remainingPosts.length);
+    }
+
+    // Anonymize or remove courses based on options
+    const userCourses = courses.filter((course: any) => course.authorId === userId || course.userId === userId);
+    if (userCourses.length > 0) {
+      if (options.keepEssential) {
+        // Anonymize instead of delete
+        const anonymizedCourses = courses.map((course: any) => 
+          (course.authorId === userId || course.userId === userId) 
+            ? { ...course, authorId: 'anonymous', userId: 'anonymous', authorName: 'Anonymous User' }
+            : course
+        );
+        setCourses(anonymizedCourses);
+        anonymizedCount += userCourses.length;
+      } else {
+        // Complete removal
+        const remainingCourses = courses.filter((course: any) => 
+          course.authorId !== userId && course.userId !== userId
+        );
+        setCourses(remainingCourses);
+        erasedCount += userCourses.length;
+      }
+      updateDataInventory('courses', courses.length - (options.keepEssential ? 0 : userCourses.length));
+    }
+
+    // Remove user consents
+    const userConsentKeys = Object.keys(userConsents).filter(key => key.startsWith(userId));
+    if (userConsentKeys.length > 0) {
+      setUserConsents((prev: any) => {
+        const newConsents = { ...prev };
+        userConsentKeys.forEach(key => delete newConsents[key]);
+        return newConsents;
+      });
+      erasedCount += userConsentKeys.length;
+    }
+
+    // Remove user's GDPR operations (except the erasure operation itself)
+    setGdprOperations((prev: any) => prev.filter((op: any) => op.userId !== userId));
+
+    const result = {
+      userId,
+      erasureDate: new Date(),
+      erasedItems: erasedCount,
+      anonymizedItems: anonymizedCount,
+      certificateId: `GDPR-DEL-${Date.now()}` // Deletion certificate
+    };
+
+    await logGdprOperation('DATA_ERASURE_COMPLETED', 
+      `Erased: ${erasedCount}, Anonymized: ${anonymizedCount}`, userId);
+    
+    return result;
+  }, [gdprEnabled, posts, courses, userConsents, gdprOperations, logGdprOperation, updateDataInventory, setPosts, setCourses]);
+
+  // Helper functions for GDPR storage that use actual storage backends
+
+
   // Enhanced storage functions for GDPR Storage System
   const savePostsToStorageEnhanced = React.useCallback(async (postsData: any[]) => {
     if (useStorageManager) {
       try {
         console.log('Saving posts via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         
         // Use storage plugin for GDPR compliance
@@ -5466,6 +5403,11 @@ const DemoContent: React.FC<{
         
         await storage.createMany(EntityType.POSTS, serializedPosts);
         
+        // Update data inventory for GDPR tracking
+        updateDataInventory('posts', postsData.length);
+        
+        // Log the GDPR operation
+        await logGdprOperation('DATA_STORED', `Saved ${postsData.length} posts via storage manager`, 'system');
       } catch (error) {
         console.error('Failed to save posts via storage manager:', error);
         // Fallback to regular storage
@@ -5475,42 +5417,47 @@ const DemoContent: React.FC<{
       // Legacy mode: indexedDB only, no GDPR
       await savePostsToStorage(postsData);
     }
-  }, [useStorageManager, savePostsToStorage, storage]);
+  }, [useStorageManager, updateDataInventory, logGdprOperation, savePostsToStorage, useStoragePlugin]);
 
   const loadPostsFromStorageEnhanced = React.useCallback(async (): Promise<any[]> => {
     console.log('🔍 loadPostsFromStorageEnhanced:', { useStorageManager, storageBackend });
     if (useStorageManager) {
       try {
         console.log('Loading posts via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         
         // Use storage plugin for GDPR compliance
         const postsData = await storage.findAll(EntityType.POSTS);
         console.log('📤 Loaded from storage manager:', postsData.length, `posts (${storageBackend})`);
         
+        // Log the GDPR operation
+        await logGdprOperation('DATA_ACCESSED', `Loaded ${postsData.length} posts via storage manager`, 'system');
         return postsData;
       } catch (error) {
         console.error('Failed to load posts via storage manager:', error);
-        return []; // Return empty array on error
+        // Fallback to regular storage
+        return await loadPostsFromStorage();
       }
     } else {
       console.log('📂 Using regular storage for posts');
       // Legacy mode: indexedDB only, no GDPR
       return await loadPostsFromStorage();
     }
-  }, [useStorageManager, loadPostsFromStorage, storageBackend, storage]);
+  }, [useStorageManager, logGdprOperation, loadPostsFromStorage, storageBackend, useStoragePlugin]);
 
   // Enhanced storage functions for Courses
   const saveCoursesToStorageEnhanced = React.useCallback(async (coursesData: any[]) => {
     if (useStorageManager) {
       try {
         console.log('Saving courses via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         
         // Use storage plugin for GDPR compliance
         await storage.createMany(EntityType.COURSES, coursesData);
+        updateDataInventory('courses', coursesData.length);
+        await logGdprOperation('DATA_STORED', `Saved ${coursesData.length} courses via storage manager`, 'system');
       } catch (error) {
         console.error('Failed to save courses via storage manager:', error);
         await saveToStorage(coursesData);
@@ -5519,15 +5466,16 @@ const DemoContent: React.FC<{
       // Legacy mode: indexedDB only, no GDPR
       await saveToStorage(coursesData);
     }
-  }, [useStorageManager, saveToStorage, storage]);
+  }, [useStorageManager, updateDataInventory, logGdprOperation, saveToStorage, useStoragePlugin]);
 
   const loadCoursesFromStorageEnhanced = React.useCallback(async (): Promise<any[]> => {
     if (useStorageManager) {
       try {
         console.log('Loading courses via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         const coursesData = await storage.findAll(EntityType.COURSES);
+        await logGdprOperation('DATA_ACCESSED', `Loaded ${coursesData.length} courses via storage manager`, 'system');
         return coursesData;
       } catch (error) {
         console.error('Failed to load courses via storage manager:', error);
@@ -5536,7 +5484,7 @@ const DemoContent: React.FC<{
     } else {
       return await loadFromStorage();
     }
-  }, [useStorageManager, loadFromStorage, storage]);
+  }, [useStorageManager, logGdprOperation, loadFromStorage, useStoragePlugin]);
 
   // Unlike post handler - defined after storage functions to avoid temporal dead zone
   const handleUnlikePost = React.useCallback(async (postId: string) => {
@@ -5566,310 +5514,140 @@ const DemoContent: React.FC<{
     if (useStorageManager) {
       try {
         console.log('Saving members via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         await storage.createMany(EntityType.MEMBERS, membersData);
+        updateDataInventory('members', membersData.length);
+        await logGdprOperation('DATA_STORED', `Saved ${membersData.length} members via storage manager`, 'system');
       } catch (error) {
         console.error('Failed to save members via storage manager:', error);
+        await saveMembers(membersData);
       }
     } else {
       await saveMembers(membersData);
     }
-  }, [useStorageManager, saveMembers, storage]);
+  }, [useStorageManager, updateDataInventory, logGdprOperation, saveMembers, useStoragePlugin]);
 
   const loadMembersFromStorageEnhanced = React.useCallback(async (): Promise<any[]> => {
     if (useStorageManager) {
       try {
         console.log('Loading members via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         const membersData = await storage.findAll(EntityType.MEMBERS);
+        await logGdprOperation('DATA_ACCESSED', `Loaded ${membersData.length} members via storage manager`, 'system');
         return membersData;
       } catch (error) {
         console.error('Failed to load members via storage manager:', error);
-        return [];
+        return await loadMembers();
       }
     } else {
       return await loadMembers();
     }
-  }, [useStorageManager, loadMembers, storage]);
+  }, [useStorageManager, logGdprOperation, loadMembers, useStoragePlugin]);
 
   // Enhanced storage functions for Products
   const saveProductsToStorageEnhanced = React.useCallback(async (productsData: any[]) => {
     if (useStorageManager) {
       try {
         console.log('Saving products via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         await storage.createMany(EntityType.PRODUCTS, productsData);
+        updateDataInventory('products', productsData.length);
+        await logGdprOperation('DATA_STORED', `Saved ${productsData.length} products via storage manager`, 'system');
       } catch (error) {
         console.error('Failed to save products via storage manager:', error);
+        await saveProducts(productsData);
       }
     } else {
       await saveProducts(productsData);
     }
-  }, [useStorageManager, saveProducts, storage]);
+  }, [useStorageManager, updateDataInventory, logGdprOperation, saveProducts, useStoragePlugin]);
 
   const loadProductsFromStorageEnhanced = React.useCallback(async (): Promise<any[]> => {
     if (useStorageManager) {
       try {
         console.log('Loading products via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         const productsData = await storage.findAll(EntityType.PRODUCTS);
+        await logGdprOperation('DATA_ACCESSED', `Loaded ${productsData.length} products via storage manager`, 'system');
         return productsData;
       } catch (error) {
         console.error('Failed to load products via storage manager:', error);
-        return [];
+        return await loadProducts();
       }
     } else {
       return await loadProducts();
     }
-  }, [useStorageManager, loadProducts, storage]);
+  }, [useStorageManager, logGdprOperation, loadProducts, useStoragePlugin]);
 
   // Enhanced storage functions for Events
   const saveEventsToStorageEnhanced = React.useCallback(async (eventsData: any[]) => {
     if (useStorageManager) {
       try {
         console.log('Saving events via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         await storage.createMany(EntityType.EVENTS, eventsData);
+        updateDataInventory('events', eventsData.length);
+        await logGdprOperation('DATA_STORED', `Saved ${eventsData.length} events via storage manager`, 'system');
       } catch (error) {
         console.error('Failed to save events via storage manager:', error);
+        await saveEvents(eventsData);
       }
     } else {
       await saveEvents(eventsData);
     }
-  }, [useStorageManager, saveEvents, storage]);
+  }, [useStorageManager, updateDataInventory, logGdprOperation, saveEvents, useStoragePlugin]);
 
   const loadEventsFromStorageEnhanced = React.useCallback(async (): Promise<any[]> => {
     if (useStorageManager) {
       try {
         console.log('Loading events via Storage Manager');
-        // Using storage object directly
+        const storage = useStoragePlugin();
         if (!storage?.isInitialized) throw new Error('Storage manager not available or not initialized');
         const eventsData = await storage.findAll(EntityType.EVENTS);
+        await logGdprOperation('DATA_ACCESSED', `Loaded ${eventsData.length} events via storage manager`, 'system');
         return eventsData;
       } catch (error) {
         console.error('Failed to load events via storage manager:', error);
-        return [];
+        return await loadEvents();
       }
     } else {
       return await loadEvents();
     }
-  }, [useStorageManager, loadEvents, storage]);
+  }, [useStorageManager, logGdprOperation, loadEvents, useStoragePlugin]);
 
-  // Refresh active tab data after storage configuration changes
-  const refreshAllData = React.useCallback(async () => {
-    try {
-      console.log('🔄 Refreshing active tab data:', activeTab);
-      
-      if (!activeTab) {
-        console.log('⏸️ No active tab, skipping data load');
-        return;
-      }
-      
-      // Wait for storage to be ready if using storage manager
-      if (useStorageManager && !storage?.isInitialized) {
-        console.log('⏳ Storage not initialized, skipping data load');
-        return;
-      }
-      
-      // If not using storage manager, load from mock data
-      if (!useStorageManager) {
-        console.log('📊 Loading mock data for tab:', activeTab);
-        // For non-storage mode, load mock data directly
-        switch (activeTab) {
-          case 'messaging':
-            setPosts(samplePosts);
-            setUserLikes(new Set());
-            console.log('✅ Mock messaging data loaded');
-            break;
-          case 'classroom':
-            setCourses(sampleCourses);
-            console.log('✅ Mock classroom data loaded');
-            break;
-          case 'members':
-            setMembers(sampleMembers);
-            console.log('✅ Mock members data loaded');
-            break;
-          case 'merchandise':
-            setProducts(sampleProducts);
-            console.log('✅ Mock merchandise data loaded');
-            break;
-          case 'calendar':
-            setEvents(sampleEvents);
-            console.log('✅ Mock calendar data loaded');
-            break;
-          default:
-            console.log('ℹ️ No mock data for tab:', activeTab);
-        }
-        return;
-      }
-      
-      console.log('📊 Loading data for tab:', activeTab);
-      
-      // Only refresh data for the currently active tab
-      switch (activeTab) {
-        case 'messaging':
-          const newPosts = await loadPostsFromStorageEnhanced();
-          setPosts(newPosts);
-          const newUserLikes = await loadUserLikes();
-          setUserLikes(newUserLikes);
-          console.log('✅ Messaging data refreshed:', { posts: newPosts.length, userLikes: newUserLikes.size });
-          break;
-          
-        case 'classroom':
-          const newCourses = await loadCoursesFromStorageEnhanced();
-          setCourses(newCourses);
-          console.log('✅ Classroom data refreshed:', { courses: newCourses.length });
-          break;
-          
-        case 'members':
-          const newMembers = await loadMembersFromStorageEnhanced();
-          setMembers(newMembers);
-          console.log('✅ Members data refreshed:', { members: newMembers.length });
-          break;
-          
-        case 'merchandise':
-          const newProducts = await loadProductsFromStorageEnhanced();
-          setProducts(newProducts);
-          console.log('✅ Merchandise data refreshed:', { products: newProducts.length });
-          break;
-          
-        case 'calendar':
-          const newEvents = await loadEventsFromStorageEnhanced();
-          setEvents(newEvents);
-          console.log('✅ Calendar data refreshed:', { events: newEvents.length });
-          break;
-          
-        default:
-          console.log('ℹ️ No data to refresh for tab:', activeTab);
-      }
-      
-    } catch (error) {
-      console.error('❌ Failed to refresh data:', error);
-    }
-  }, [
-    useStorageManager, 
-    storage?.isInitialized,
-    activeTab,
-    loadPostsFromStorageEnhanced,
-    loadCoursesFromStorageEnhanced,
-    loadMembersFromStorageEnhanced,
-    loadProductsFromStorageEnhanced,
-    loadEventsFromStorageEnhanced,
-    loadUserLikes,
-    setPosts,
-    setCourses,
-    setMembers,
-    setProducts,
-    setEvents,
-    setUserLikes
-  ]);
-
-  // Load data for active tab whenever activeTab changes  
+  // Load data from storage on mount and when storage backend changes
   React.useEffect(() => {
-    if (!activeTab) {
-      console.log('📊 No active tab yet, skipping data load');
-      return;
-    }
-    
-    console.log('📊 Active tab changed to:', activeTab);
-    
-    // Load data directly without using refreshAllData to avoid infinite loop
     const loadData = async () => {
-      console.log('📊 Loading data for tab:', activeTab);
-      
-      // If not using storage manager, load from mock data
-      if (!useStorageManager) {
-        console.log('📊 Loading mock data for tab:', activeTab);
-        switch (activeTab) {
-          case 'messaging':
-            setPosts(samplePosts);
-            setUserLikes(new Set());
-            console.log('✅ Mock messaging data loaded');
-            break;
-          case 'classroom':
-            setCourses(sampleCourses);
-            console.log('✅ Mock classroom data loaded');
-            break;
-          case 'members':
-            setMembers(sampleMembers);
-            console.log('✅ Mock members data loaded');
-            break;
-          case 'merchandise':
-            setProducts(sampleProducts);
-            console.log('✅ Mock merchandise data loaded');
-            break;
-          case 'calendar':
-            setEvents(sampleEvents);
-            console.log('✅ Mock calendar data loaded');
-            break;
-          default:
-            console.log('ℹ️ No mock data for tab:', activeTab);
-        }
-        return;
-      }
-      
-      // If using storage manager, wait for it to be ready
-      if (useStorageManager && !storage?.isInitialized) {
-        console.log('⏳ Storage not initialized, skipping data load');
-        return;
-      }
-      
-      // Load from storage
       try {
-        switch (activeTab) {
-          case 'messaging':
-            const newPosts = await loadPostsFromStorageEnhanced();
-            setPosts(newPosts);
-            const newUserLikes = await loadUserLikes();
-            setUserLikes(newUserLikes);
-            console.log('✅ Messaging data loaded from storage');
-            break;
-          case 'classroom':
-            const newCourses = await loadCoursesFromStorageEnhanced();
-            setCourses(newCourses);
-            console.log('✅ Classroom data loaded from storage');
-            break;
-          case 'members':
-            const newMembers = await loadMembersFromStorageEnhanced();
-            setMembers(newMembers);
-            console.log('✅ Members data loaded from storage');
-            break;
-          case 'merchandise':
-            const newProducts = await loadProductsFromStorageEnhanced();
-            setProducts(newProducts);
-            console.log('✅ Merchandise data loaded from storage');
-            break;
-          case 'calendar':
-            const newEvents = await loadEventsFromStorageEnhanced();
-            setEvents(newEvents);
-            console.log('✅ Calendar data loaded from storage');
-            break;
-          default:
-            console.log('ℹ️ No data to load for tab:', activeTab);
-        }
+        const [loadedPosts, loadedLikes, loadedCourses, loadedMembers, loadedProducts, loadedEvents] = await Promise.all([
+          loadPostsFromStorageEnhanced(),
+          loadUserLikes(),
+          loadCoursesFromStorageEnhanced(),
+          loadMembersFromStorageEnhanced(),
+          loadProductsFromStorageEnhanced(),
+          loadEventsFromStorageEnhanced()
+        ]);
+        setPosts(loadedPosts);
+        setUserLikes(loadedLikes);
+        setCourses(loadedCourses);
+        setMembers(loadedMembers);
+        setProducts(loadedProducts);
+        setEvents(loadedEvents);
       } catch (error) {
-        console.error('❌ Failed to load data:', error);
+        console.error('Failed to load data from storage:', error);
       }
     };
     
-    // Add a small delay to ensure everything is ready
-    const timer = setTimeout(() => {
-      loadData();
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, [activeTab]); // Only depend on activeTab
-  
+    loadData();
+  }, [useStorageManager]); // Re-load when storage manager changes
 
-  // Register plugins once at startup
   React.useEffect(() => {
     console.log('🔧 Registering plugins...');
-    console.log('storagePlugin:', storagePlugin);
     console.log('courseBuilderPlugin:', courseBuilderPlugin);
     console.log('messagingPlugin:', messagingPlugin);
     console.log('communitySidebarPlugin:', communitySidebarPlugin);
@@ -5883,9 +5661,6 @@ const DemoContent: React.FC<{
     console.log('communityMyProfilePlugin:', communityMyProfilePlugin);
     
     // Register new plugins (dependencies first)
-    if (!pluginRegistry.getPlugin('storage')) {
-      pluginRegistry.register(storagePlugin);
-    }
     pluginRegistry.register(courseBuilderPlugin);
     pluginRegistry.register(messagingPlugin);
     pluginRegistry.register(communitySidebarPlugin);
@@ -5939,24 +5714,8 @@ const DemoContent: React.FC<{
     // Get installed plugins (exclude course-builder as it's not shown as a tab)
     const installed = pluginRegistry.getInstalledPlugins().filter(p => p.id !== 'course-builder');
     setInstalledPlugins(installed);
-    
-    // Handle active tab setting with sessionStorage persistence
-    if (installed.length > 0) {
-      if (!activeTab) {
-        // No active tab - set to first plugin and save to sessionStorage
-        const firstPluginId = installed[0].id;
-        setActiveTab(firstPluginId);
-        sessionStorage.setItem('activeTab', firstPluginId);
-      } else {
-        // Validate that the restored tab still exists
-        const tabExists = installed.some(plugin => plugin.id === activeTab);
-        if (!tabExists) {
-          // Saved tab no longer exists - reset to first plugin
-          const firstPluginId = installed[0].id;
-          setActiveTab(firstPluginId);
-          sessionStorage.setItem('activeTab', firstPluginId);
-        }
-      }
+    if (installed.length > 0 && !activeTab) {
+      setActiveTab(installed[0].id);
     }
     
     // Set up cross-plugin event listeners
@@ -6036,6 +5795,20 @@ const DemoContent: React.FC<{
     // Initialize with empty courses array
     setCourses([]);
     
+    // Initialize GDPR data inventory
+    if (gdprEnabled) {
+      logGdprOperation('SYSTEM_INIT', `Plugin system initialized with ${installed.length} plugins`);
+      updateDataInventory('courses', courses.length, encryptionEnabled);
+      updateDataInventory('posts', posts.length, encryptionEnabled);
+      updateDataInventory('comments', 0, encryptionEnabled); // Initialize with 0 comments
+      
+      // Set default consents for demo user
+      recordConsent('user-1', 'essential_functionality', true);
+      recordConsent('user-1', 'community_interaction', true);
+      recordConsent('user-1', 'analytics', false);
+      recordConsent('user-1', 'marketing', false);
+    }
+    
     // Emit plugin activation events for demo
     setTimeout(() => {
       installed.forEach(plugin => {
@@ -6043,6 +5816,11 @@ const DemoContent: React.FC<{
           pluginId: plugin.id, 
           pluginName: plugin.name 
         }, 'demo-system');
+        
+        // Log plugin activation
+        if (gdprEnabled) {
+          logGdprOperation('PLUGIN_ACTIVATED', `Plugin: ${plugin.name} (${plugin.id})`);
+        }
       });
     }, 1000);
     
@@ -6051,109 +5829,6 @@ const DemoContent: React.FC<{
       unsubscribers.forEach(unsub => unsub());
     };
   }, []);
-  
-  // Configure and install storage plugin (simplified like StoragePluginTestApp)
-  React.useEffect(() => {
-    const initializeStoragePlugin = async () => {
-      try {
-        const dbName = getDatabaseName(useStorageManager, useGDPRMode);
-        console.log('🔧 Configuring storage plugin:', { useStorageManager, useGDPRMode, dbName });
-        
-        // Detect current database version
-        const detectDatabaseVersion = async (dbName: string): Promise<number> => {
-          return new Promise((resolve) => {
-            const request = indexedDB.open(dbName);
-            request.onsuccess = () => {
-              const db = request.result;
-              const currentVersion = db.version;
-              db.close();
-              resolve(currentVersion);
-            };
-            request.onerror = () => {
-              resolve(1); // Default to version 1 if database doesn't exist
-            };
-          });
-        };
-        
-        const currentVersion = await detectDatabaseVersion(dbName);
-        console.log(`🔍 Database "${dbName}" current version: ${currentVersion}, using version: ${currentVersion}`);
-        
-        // Configure storage plugin (like StoragePluginTestApp.tsx)
-        const storageConfigValues = {
-          backend: {
-            type: parentStorageConfig.backend as 'indexeddb' | 'memory',
-            database: dbName,
-            options: { version: currentVersion }
-          },
-          gdpr: {
-            enabled: useGDPRMode,
-            encryption: {
-              enabled: useGDPRMode,
-              algorithm: 'AES-256-GCM' as const,
-              keyDerivation: 'PBKDF2' as const,
-              keyRotationDays: 0, // Disable key rotation to prevent infinite rotation
-              keyProvider: 'default',
-              encryptionStrength: 'high',
-              masterKey: import.meta.env.VITE_ENCRYPTION_MASTER_KEY || 'plugin-system-enhanced-master-key-2024',
-              currentVersion: 1,
-              encryptedFields: {
-                [EntityType.USERS]: ['email', 'name', 'phone'],
-                [EntityType.POSTS]: ['content'],
-                [EntityType.COMMENTS]: ['content']
-              }
-            },
-            consent: {
-              required: useGDPRMode,
-              defaultConsent: true,
-              purposes: [
-                {
-                  id: 'essential',
-                  name: 'Essential Functions',
-                  description: 'Required for basic application functionality',
-                  category: 'necessary',
-                  required: true,
-                  legalBasis: 'legitimate_interest',
-                  dataCategories: ['functional_data']
-                }
-              ]
-            },
-            audit: {
-              enabled: useGDPRMode,
-              batchSize: 1,
-              includeDetails: true
-            }
-          },
-          cache: {
-            enabled: true,
-            type: 'memory',
-            ttl: 60000,
-            maxSize: 100,
-            strategy: 'lru'
-          },
-          updateQueue: {
-            enabled: false,
-            batchWindow: 100,
-            maxBatchSize: 10,
-            retryAttempts: 3,
-            retryDelay: 1000,
-            persistence: false,
-            priorityLevels: 3,
-            deadLetterQueue: false
-          }
-        };
-        
-        // Configure and install (like StoragePluginTestApp.tsx)
-        storageConfig.setConfig(storageConfigValues);
-        (window as any).__storagePluginConfig = storageConfigValues;
-        await pluginRegistry.install('storage');
-        
-      } catch (error) {
-        console.error('Failed to initialize storage plugin:', error);
-      }
-    };
-    
-    initializeStoragePlugin();
-  }, [useStorageManager, useGDPRMode]); // Simplified dependencies like StoragePluginTestApp
 
 
   const ActivePluginComponent = React.useMemo(() => {
@@ -6163,8 +5838,6 @@ const DemoContent: React.FC<{
     
   console.log('🎨 Current activeTab:', activeTab);
   console.log('🧩 ActivePluginComponent:', ActivePluginComponent);
-
-  // Don't show loading state - render UI immediately and load data asynchronously
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -6188,7 +5861,7 @@ const DemoContent: React.FC<{
               <div className="flex items-center space-x-2">
                 <label className="text-sm font-medium text-gray-700">Storage:</label>
                 <span className="px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-sm text-gray-700">
-                  {parentStorageBackend}
+                  {parentStorageBackend === 'localStorage' ? 'Local Storage' : 'IndexedDB'}
                 </span>
               </div>
               
@@ -6234,25 +5907,9 @@ const DemoContent: React.FC<{
                     onChange={async (e) => {
                       const newValue = e.target.checked;
                       console.log('🔧 GDPR Toggle:', { newValue, useStorageManager });
-                      
-                      try {
-                        // Store the desired mode in sessionStorage for persistence
-                        sessionStorage.setItem('useGDPRMode', newValue.toString());
-                        
-                        // Update both local and parent state immediately - the useEffect will handle plugin reconfiguration
-                        setUseGDPRMode(newValue);
-                        
-                        console.log(`🔄 Switching to ${newValue ? 'GDPR' : 'non-GDPR'} database - plugin will reconfigure automatically`);
-                        
-                        // Refresh the current tab data after a brief delay to allow plugin reconfiguration
-                        setTimeout(() => {
-                          refreshAllData();
-                        }, 500);
-                        
-                      } catch (error) {
-                        console.error('❌ Failed to switch GDPR mode:', error);
-                        showInfo('Error', 'Failed to switch GDPR mode');
-                      }
+                      setUseGDPRMode(newValue);
+                      await logGdprOperation('GDPR_TOGGLE', `GDPR ${newValue ? 'enabled' : 'disabled'} (storage manager mode)`);
+                      showInfo('GDPR Mode', newValue ? 'GDPR enabled via storage manager' : 'GDPR disabled');
                     }}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
@@ -6315,7 +5972,6 @@ const DemoContent: React.FC<{
                 key={plugin.id}
                 onClick={() => {
                   setActiveTab(plugin.id);
-                  sessionStorage.setItem('activeTab', plugin.id);
                   newEventBus.emit('demo:tab-changed', { 
                     from: activeTab, 
                     to: plugin.id,
@@ -6357,22 +6013,49 @@ const DemoContent: React.FC<{
                     {dataInventory.reduce((sum: any, item: any) => sum + item.count, 0)} total
                   </button>
                 </div>
+                
+                {/* Moved GDPR Controls Here */}
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="encryption-checkbox-panel"
+                      checked={encryptionEnabled}
+                      onChange={(e) => {
+                        setEncryptionEnabled(e.target.checked);
+                        logGdprOperation('ENCRYPTION_TOGGLE', `Encryption ${e.target.checked ? 'enabled' : 'disabled'}`);
+                      }}
+                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="encryption-checkbox-panel" className="text-sm font-medium text-blue-900">
+                      🔒 Encryption
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="audit-checkbox-panel"
+                      checked={auditEnabled}
+                      onChange={(e) => {
+                        setAuditEnabled(e.target.checked);
+                        logGdprOperation('AUDIT_TOGGLE', `Audit logging ${e.target.checked ? 'enabled' : 'disabled'}`);
+                      }}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="audit-checkbox-panel" className="text-sm font-medium text-blue-900">
+                      📋 Audit Logging
+                    </label>
+                  </div>
+                </div>
               </div>
               
               <div className="flex items-center space-x-2">
                 {/* GDPR Action Buttons */}
                 <button
                   onClick={async () => {
-                    if (!storage.exportUserData) {
-                      showWarning('Export Failed', 'Export function not available');
-                      return;
-                    }
                     try {
-                      const userData = await storage.exportUserData(mockUser.id, {
-                        format: 'json',
-                        includeMetadata: true,
-                        includeAuditTrail: false
-                      });
+                      const userData = await exportUserData('user-1'); // Demo user
                       const blob = new Blob([JSON.stringify(userData, null, 2)], { type: 'application/json' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
@@ -6382,7 +6065,6 @@ const DemoContent: React.FC<{
                       URL.revokeObjectURL(url);
                       showSuccess('Data Export', 'User data exported successfully');
                     } catch (error) {
-                      console.error('Export error:', error);
                       showWarning('Export Failed', 'Could not export user data');
                     }
                   }}
@@ -6392,18 +6074,11 @@ const DemoContent: React.FC<{
                 </button>
                 
                 <button
-                  onClick={async () => {
-                    if (!storage.grantConsent) {
-                      showWarning('Consent Failed', 'Consent function not available');
-                      return;
-                    }
-                    try {
-                      await storage.grantConsent(mockUser.id, ['essential', 'personalization']);
-                      showInfo('Consent Updated', 'User consent granted for essential and personalization purposes');
-                    } catch (error) {
-                      console.error('Consent error:', error);
-                      showWarning('Consent Failed', 'Could not grant consent');
-                    }
+                  onClick={() => {
+                    recordConsent('user-1', 'community_interaction', true);
+                    recordConsent('user-1', 'analytics', false);
+                    recordConsent('user-1', 'marketing', false);
+                    showInfo('Consent Updated', 'User consent preferences recorded');
                   }}
                   className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
                 >
@@ -6413,19 +6088,10 @@ const DemoContent: React.FC<{
                 <button
                   onClick={async () => {
                     if (confirm('Are you sure you want to erase all user data? This cannot be undone.')) {
-                      const dataSubjectRights = getDataSubjectRights();
-                      if (!dataSubjectRights) {
-                        showWarning('Erasure Failed', 'Data subject rights service not available');
-                        return;
-                      }
                       try {
-                        const result = await dataSubjectRights.deleteUserData(mockUser.id);
-                        showInfo('Data Erased', `User data has been erased. ${result?.certificateId ? `Certificate: ${result.certificateId}` : ''}`);
-                        
-                        // Refresh the UI to show empty data
-                        window.location.reload();
+                        const result = await eraseUserData('user-1', { keepEssential: false });
+                        showInfo('Data Erased', `Erased ${result?.erasedItems} items. Certificate: ${result?.certificateId}`);
                       } catch (error) {
-                        console.error('Erasure error:', error);
                         showWarning('Erasure Failed', 'Could not erase user data');
                       }
                     }
@@ -6436,47 +6102,28 @@ const DemoContent: React.FC<{
                 </button>
                 
                 <button
-                  onClick={async () => {
-                    try {
-                      // Access audit logger service from storage plugin
-                      const instance = storage.getInstance && storage.getInstance();
-                      const auditLogger = instance?.auditLogger;
-                      
-                      if (!auditLogger) {
-                        showWarning('Audit Log Failed', 'Audit service not available');
-                        return;
-                      }
-                      
-                      // Get audit logs
-                      const auditLogs = await auditLogger.getAuditLogs({
-                        orderBy: [{ field: 'timestamp', direction: 'desc' }],
-                        limit: 100
-                      });
-                      
-                      const logContent = auditLogs.map((log: any) => 
-                        `${new Date(log.timestamp).toLocaleString()}: ${log.operation} - ${log.details || log.description}${log.userId ? ` (User: ${log.userId})` : ''}`
-                      ).join('\n\n');
-                      
-                      // Open in a new window
-                      const newWindow = window.open('', '_blank', 'width=800,height=600');
-                      if (newWindow) {
-                        newWindow.document.write(`
-                          <html>
-                            <head><title>GDPR Audit Log</title></head>
-                            <body style="font-family: monospace; padding: 20px; background: #f9f9f9;">
-                              <h2>GDPR Operations Audit Log</h2>
-                              <p><strong>Total Operations:</strong> ${auditLogs.length}</p>
-                              <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-                              <hr>
-                              <pre style="background: white; padding: 15px; border: 1px solid #ddd; border-radius: 4px; overflow: auto;">${logContent || 'No operations logged yet.'}</pre>
-                            </body>
-                          </html>
-                        `);
-                        newWindow.document.close();
-                      }
-                    } catch (error) {
-                      console.error('Audit log error:', error);
-                      showWarning('Audit Log Failed', 'Could not retrieve audit logs');
+                  onClick={() => {
+                    // Create a detailed audit log view
+                    const logContent = gdprOperations.map(op => 
+                      `${op.timestamp.toLocaleString()}: ${op.operation} - ${op.details}${op.userId ? ` (User: ${op.userId})` : ''}`
+                    ).join('\n\n');
+                    
+                    // Open in a new window
+                    const newWindow = window.open('', '_blank', 'width=800,height=600');
+                    if (newWindow) {
+                      newWindow.document.write(`
+                        <html>
+                          <head><title>GDPR Audit Log</title></head>
+                          <body style="font-family: monospace; padding: 20px; background: #f9f9f9;">
+                            <h2>GDPR Operations Audit Log</h2>
+                            <p><strong>Total Operations:</strong> ${gdprOperations.length}</p>
+                            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                            <hr>
+                            <pre style="background: white; padding: 15px; border: 1px solid #ddd; border-radius: 4px; overflow: auto;">${logContent || 'No operations logged yet.'}</pre>
+                          </body>
+                        </html>
+                      `);
+                      newWindow.document.close();
                     }
                   }}
                   className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
@@ -6491,26 +6138,61 @@ const DemoContent: React.FC<{
 
       {/* Plugin Content */}
       <div className="max-w-7xl mx-auto">
-        {(() => {
-          if (!ActivePluginComponent) return null;
+        {ActivePluginComponent && (
+          <PluginRenderer
+            ActivePluginComponent={ActivePluginComponent}
+            mockUser={mockUser}
+            mockCommunity={mockCommunity}
+            posts={posts}
+            userLikes={userLikes}
+            handleCreatePost={handleCreatePost}
+            handleLikePost={handleLikePost}
+            handleUnlikePost={handleUnlikePost}
+            handleEditPost={handleEditPost}
+            handleDeletePost={handleDeletePost}
+            handleAddComment={handleAddComment}
+            handleLoadComments={handleLoadComments}
+            handleLikeComment={handleLikeComment}
+            handleUnlikeComment={handleUnlikeComment}
+            handleEditComment={handleEditComment}
+            handleDeleteComment={handleDeleteComment}
+            handlePinPost={handlePinPost}
+            handleToggleCommentsForPost={handleToggleCommentsForPost}
+            activeTab={activeTab}
+            members={members}
+            courses={courses}
+            loading={loading}
+            handleLoadCourses={handleLoadCourses}
+            handleCreateCourse={handleCreateCourse}
+            handleUpdateCourse={handleUpdateCourse}
+            handleDeleteCourse={handleDeleteCourse}
+            handleCloneCourse={handleCloneCourse}
+            handleLoadCourse={handleLoadCourse}
+            handleCreateCourseLesson={handleCreateCourseLesson}
+            handleUpdateCourseLesson={handleUpdateCourseLesson}
+            handleUpdateCourseProgress={handleUpdateCourseProgress}
+            handleEnrollStudent={handleEnrollStudent}
+            handleLoadUserEnrollments={handleLoadUserEnrollments}
+            handleLoadCourseEnrollments={handleLoadCourseEnrollments}
+            handleLessonCompleted={handleLessonCompleted}
+            handleModuleCompleted={handleModuleCompleted}
+            handleCourseCompleted={handleCourseCompleted}
+            savingStates={savingStates}
+            showSuccess={showSuccess}
+            showInfo={showInfo}
+            showWarning={showWarning}
+            loadPostsFromStorage={loadPostsFromStorage}
+            savePostsToStorageEnhanced={savePostsToStorageEnhanced}
+            saveUserLikes={saveUserLikes}
+            setPosts={setPosts}
+            setUserLikes={setUserLikes}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
 
-          // Base props that all plugins receive
-          const baseProps = {
-            currentUser: mockUser,
-            communityId: mockCommunity.id,
-            community: {
-              ...mockCommunity,
-              stats: {
-                memberCount: 1250,
-                online: 42,
-                adminCount: 5
-              }
-            },
-            userRole: "owner" as const,
-          };
-
-          // Plugin-specific props mapping (prevents duplicate attributes)
-          const pluginPropsMap: Record<string, any> = {
             'messaging': {
               // Use exactly the same props as community plugin
               posts: posts,
@@ -6519,27 +6201,7 @@ const DemoContent: React.FC<{
               error: undefined,
               onCreatePost: handleCreatePost,
               onLikePost: handleLikePost,
-              onUnlikePost: async (postId: string) => {
-                try {
-                  // Toggle unlike (reverse of like logic)
-                  const post = posts.find((p: any) => p.id === postId);
-                  if (post && userLikes.has(postId)) {
-                    const newUserLikes = new Set(userLikes);
-                    newUserLikes.delete(postId);
-                    const updatedPosts = posts.map((p: any) => 
-                      p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p
-                    );
-                    setPosts(updatedPosts);
-                    setUserLikes(newUserLikes);
-                    await savePostsToStorageEnhanced(updatedPosts);
-                    await saveUserLikes(newUserLikes as Set<string>);
-                    showInfo('Post Unliked!', 'Like removed from post.');
-                  }
-                } catch (error) {
-                  console.error('Failed to save unlike to storage:', error);
-                  // Continue with the UI update even if storage fails
-                }
-              },
+              onUnlikePost: handleUnlikePost,
               onEditPost: handleEditPost,
               onDeletePost: handleDeletePost,
               onAddComment: handleAddComment,
@@ -6584,23 +6246,18 @@ const DemoContent: React.FC<{
               onCreatePost: handleCreatePost,
               onLikePost: handleLikePost,
               onUnlikePost: async (postId: string) => {
-                try {
-                  // Toggle unlike (reverse of like logic)
-                  const post = posts.find(p => p.id === postId);
-                  if (post && userLikes.has(postId)) {
-                    const newUserLikes = new Set(userLikes);
-                    newUserLikes.delete(postId);
-                    const updatedPosts = posts.map((p: any) => 
-                      p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p
-                    );
-                    setPosts(updatedPosts);
-                    setUserLikes(newUserLikes);
-                    await savePostsToStorageEnhanced(updatedPosts);
-                    await saveUserLikes(newUserLikes as Set<string>);
-                  }
-                } catch (error) {
-                  console.error('Failed to save unlike to storage:', error);
-                  // Continue with the UI update even if storage fails
+                // Toggle unlike (reverse of like logic)
+                const post = posts.find(p => p.id === postId);
+                if (post && userLikes.has(postId)) {
+                  const newUserLikes = new Set(userLikes);
+                  newUserLikes.delete(postId);
+                  const updatedPosts = posts.map((p: any) => 
+                    p.id === postId ? { ...p, likes: Math.max(0, (p.likes || 0) - 1) } : p
+                  );
+                  setPosts(updatedPosts);
+                  setUserLikes(newUserLikes);
+                  await savePostsToStorageEnhanced(updatedPosts);
+                  await saveUserLikes(newUserLikes);
                 }
               },
               onEditPost: handleEditPost,
@@ -6822,7 +6479,12 @@ const DemoContent: React.FC<{
               onUpdatePublishingInfo: handleUpdatePublishingInfo,
               onValidateCourse: handleValidateCourse,
             },
-          };
+          }), [
+            posts, userLikes, handleCreatePost, handleLikePost, handleUnlikePost, handleEditPost, 
+            handleDeletePost, handleAddComment, handleLoadComments, handleLikeComment, 
+            handleUnlikeComment, handleEditComment, handleDeleteComment, handlePinPost,
+            // ... include all dependencies from the props
+          ]);
 
           const specificProps = pluginPropsMap[activeTab] || {};
 
@@ -6934,26 +6596,117 @@ const NewPluginSystemDemo: React.FC = () => {
 
   const storageConfig = getStorageConfig();
   
-  // Storage Manager State - read from sessionStorage
-  const [useStorageManager, setUseStorageManager] = React.useState(
-    sessionStorage.getItem('useStorageManager') === 'true'
-  );
-  const [useGDPRMode, setUseGDPRMode] = React.useState(
-    sessionStorage.getItem('useGDPRMode') === 'true'
-  );
+  // Storage Manager State
+  const [useStorageManager, setUseStorageManager] = React.useState(false);
+  const [useGDPRMode, setUseGDPRMode] = React.useState(false);
 
+  // Storage manager configuration - called once during initialization
+  const configureStorageManager = React.useCallback(async () => {
+    if (!useStorageManager) return null;
+    
+    const config = {
+      backend: {
+        type: storageConfig.backend,
+        database: useGDPRMode ? 'plugin_enhanced_gdpr' : 'plugin_enhanced_basic',
+        options: { version: 1 }
+      },
+      gdpr: {
+        enabled: useGDPRMode,
+        encryption: {
+          enabled: useGDPRMode,
+          algorithm: 'AES-256-GCM' as const,
+          keyDerivation: 'PBKDF2' as const,
+          keyRotationDays: 30,
+          masterKey: import.meta.env.VITE_ENCRYPTION_MASTER_KEY || 'demo-key',
+          encryptedFields: {
+            posts: ['content', 'title'],
+            messages: ['content', 'subject'],
+            comments: ['content'],
+            users: ['email', 'name', 'phone']
+          }
+        },
+        consent: {
+          required: useGDPRMode,
+          purposes: [
+            {
+              id: 'essential',
+              name: 'Essential Functions', 
+              description: 'Required for basic application functionality',
+              category: 'necessary' as const,
+              required: true
+            },
+            {
+              id: 'analytics',
+              name: 'Analytics',
+              description: 'Help us improve the application',
+              category: 'analytics' as const,
+              required: false
+            }
+          ]
+        },
+        audit: {
+          enabled: useGDPRMode,
+          batchSize: 1,
+          includeDetails: true
+        }
+      },
+      cache: {
+        enabled: true,
+        type: 'memory' as const,
+        ttl: 60000,
+        maxSize: 100
+      }
+    };
+    
+    // Install storage plugin
+    await pluginRegistry.install('storage');
+    return pluginRegistry.getService('storage');
+  }, [useStorageManager, useGDPRMode, storageConfig.backend]);
+
+  // useStoragePlugin hook for accessing existing storage instance
+  const useStoragePlugin = () => {
+    return pluginRegistry.getService('storage');
+  };
+
+  // Storage manager toggle handler
+  const handleStorageManagerToggle = async (enableStorageManager: boolean) => {
+    try {
+      if (enableStorageManager) {
+        // Migrating from legacy to storage manager
+        const legacyDbName = storageConfig.getDatabaseName(false);
+        const storageManagerDbName = storageConfig.getDatabaseName(true);
+        
+        console.log(`📦 Migrating from ${legacyDbName} to ${storageManagerDbName}`);
+        
+        // Enable storage manager
+        setUseStorageManager(true);
+        
+        // Configure and initialize storage manager
+        const storage = await configureStorageManager();
+        if (!storage) throw new Error('Storage manager not available');
+        
+        console.log('✅ Migration to storage manager completed');
+      } else {
+        // Disable storage manager
+        setUseStorageManager(false);
+        console.log('✅ Storage manager disabled');
+      }
+    } catch (error) {
+      console.error('Failed to toggle storage manager:', error);
+    }
+  };
 
 
   return (
     <ToastProvider>
       <DemoContent 
-        storageBackend={'indexeddb'} 
+        storageBackend={'indexedDB'} 
         setStorageBackend={() => {}}
         useStorageManager={useStorageManager}
         setUseStorageManager={setUseStorageManager}
         useGDPRMode={useGDPRMode}
         setUseGDPRMode={setUseGDPRMode}
-        parentStorageConfig={storageConfig}
+        handleStorageManagerToggle={handleStorageManagerToggle}
       />
     </ToastProvider>
   );

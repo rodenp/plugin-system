@@ -22,11 +22,11 @@ import {
   Copy
 } from 'lucide-react';
 import type { Course, Module, Lesson, ContentBlock } from '@/types/core';
+import { useCourse } from '@/core/course-context';
 
 interface ModuleManagerProps {
   course: Course;
   onCourseUpdate?: (updatedCourse: Course) => void;
-  onUpdateCourse?: (courseId: string, updates: Partial<Course>) => Promise<void>;
 }
 
 interface ModuleFormData {
@@ -41,16 +41,9 @@ interface LessonFormData {
   type: 'video' | 'text' | 'audio' | 'interactive';
 }
 
-export function ModuleManager({ course, onCourseUpdate, onUpdateCourse }: ModuleManagerProps) {
+export function ModuleManager({ course, onCourseUpdate }: ModuleManagerProps) {
+  const { updateCourse } = useCourse();
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
-  
-  // Helper function to update course
-  const updateCourseHelper = async (updatedCourse: Course) => {
-    if (onUpdateCourse) {
-      await onUpdateCourse(course.id, updatedCourse);
-    }
-    onCourseUpdate?.(updatedCourse);
-  };
   const [showModuleDialog, setShowModuleDialog] = useState(false);
   const [showLessonDialog, setShowLessonDialog] = useState(false);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
@@ -137,7 +130,8 @@ export function ModuleManager({ course, onCourseUpdate, onUpdateCourse }: Module
       }
 
       updatedCourse.updatedAt = new Date();
-      await updateCourseHelper(updatedCourse);
+      await updateCourse(updatedCourse);
+      onCourseUpdate?.(updatedCourse);
       setShowModuleDialog(false);
     } catch (error) {
       console.error('Failed to save module:', error);
@@ -199,7 +193,8 @@ export function ModuleManager({ course, onCourseUpdate, onUpdateCourse }: Module
       module.updatedAt = new Date();
       updatedCourse.updatedAt = new Date();
       
-      await updateCourseHelper(updatedCourse);
+      await updateCourse(updatedCourse);
+      onCourseUpdate?.(updatedCourse);
       setShowLessonDialog(false);
     } catch (error) {
       console.error('Failed to save lesson:', error);
@@ -218,7 +213,7 @@ export function ModuleManager({ course, onCourseUpdate, onUpdateCourse }: Module
         updatedAt: new Date()
       };
       
-      await updateCourseHelper(updatedCourse);
+      await updateCourse(updatedCourse);
       onCourseUpdate?.(updatedCourse);
     } catch (error) {
       console.error('Failed to delete module:', error);
@@ -238,7 +233,8 @@ export function ModuleManager({ course, onCourseUpdate, onUpdateCourse }: Module
         updatedCourse.modules[moduleIndex].updatedAt = new Date();
         updatedCourse.updatedAt = new Date();
         
-        await updateCourseHelper(updatedCourse);
+        await updateCourse(updatedCourse);
+        onCourseUpdate?.(updatedCourse);
       }
     } catch (error) {
       console.error('Failed to delete lesson:', error);
@@ -269,7 +265,8 @@ export function ModuleManager({ course, onCourseUpdate, onUpdateCourse }: Module
         updatedAt: new Date()
       };
       
-      await updateCourseHelper(updatedCourse);
+      await updateCourse(updatedCourse);
+      onCourseUpdate?.(updatedCourse);
     } catch (error) {
       console.error('Failed to duplicate module:', error);
     }
